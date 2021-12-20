@@ -75,3 +75,40 @@ app.post('/register', async (req, res) => {
         });
     });
 });
+
+app.get('/login', async (req, res) => {
+
+    const username = req.body.username;
+    const password = req.body.password;
+
+    db.getConnection(async (err, connection) => {
+        if (err) throw (err);
+
+        const sqlSearch = `SELECT password FROM ${DB_USERS_TABLE} WHERE username = ?`;
+        const search_query = mysql.format(sqlSearch, [username]);
+
+        await connection.query(search_query, async(err, result) => {
+            if(err) throw (err);
+
+            if(result.length != 0) {
+                // user found
+                const hashedPassword = result[0].password;
+
+                let isCorrect = await bcrypt.compare(password, hashedPassword);
+
+                if(isCorrect) {
+                    // correct password
+                    res.sendStatus(200);
+                } else {
+                    // incorrect password
+                    res.sendStatus(401);
+                }
+
+            } else {
+                connection.release();
+                console.log('User not found!');
+                res.sendStatus(404);
+            }
+        });
+    });
+});
