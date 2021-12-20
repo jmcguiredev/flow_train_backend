@@ -3,6 +3,7 @@ const app = express();
 const mysql = require("mysql");
 require("dotenv").config();
 const bcrypt = require("bcrypt");
+const generateAccessToken = require("./generateAccessToken");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -52,7 +53,7 @@ app.post('/register', async (req, res) => {
         const sqlInsert = `INSERT INTO ${DB_USERS_TABLE} VALUES (NULL,?,?)`;
         const insert_query = mysql.format(sqlInsert, [user, hashedPassword]);
 
-        await connection.query(search_query, async (err, result) => {
+        connection.query(search_query, async (err, result) => {
 
             if (err) throw (err);
             console.log("------> Search Results");
@@ -64,7 +65,7 @@ app.post('/register', async (req, res) => {
                 res.sendStatus(409);
             }
             else {
-                await connection.query(insert_query, (err, result) => {
+                connection.query(insert_query, (err, result) => {
                     connection.release();
                     if (err) throw (err);
                     console.log("--------> Created new User");
@@ -87,7 +88,7 @@ app.get('/login', async (req, res) => {
         const sqlSearch = `SELECT password FROM ${DB_USERS_TABLE} WHERE username = ?`;
         const search_query = mysql.format(sqlSearch, [username]);
 
-        await connection.query(search_query, async(err, result) => {
+        connection.query(search_query, async(err, result) => {
             if(err) throw (err);
 
             if(result.length != 0) {
@@ -98,7 +99,8 @@ app.get('/login', async (req, res) => {
 
                 if(isCorrect) {
                     // correct password
-                    res.sendStatus(200);
+                    const token = generateAccessToken({ user: username });
+                    res.status(200).json({ accessToken: token });
                 } else {
                     // incorrect password
                     res.sendStatus(401);
