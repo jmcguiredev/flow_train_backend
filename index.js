@@ -5,8 +5,7 @@ const util = require('util');
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, checkCompany, createCompany } = require(".//util/db");
-const { create } = require("domain");
+const { createUser, getUser, getCompany, createCompany } = require("./util/db");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -14,8 +13,6 @@ const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
 const DB_PORT = process.env.DB_PORT;
-const DB_USERS_TABLE = process.env.DB_USERS_TABLE;
-const DB_COMPANIES_TABLE = process.env.DB_COMPANIES_TABLE;
 const port = process.env.PORT;
 
 const pool = mysql.createPool({
@@ -69,7 +66,7 @@ app.post('/register', async (req, res) => {
         // Creating 'Agent' user account
 
         // Check if company exists
-        const company = await checkCompany(company_id, pool);
+        const company = await getCompany(company_id, pool);
 
         if (company[0]) {
             // Create User
@@ -139,7 +136,8 @@ app.get('/login', async (req, res) => {
 
 app.get('/profile', (req, res) => {
 
-    const tokenValidity = verifyToken(req.body.token);
+    const token = req.body.token;
+    const tokenValidity = verifyToken(token);
     const { type, message } = tokenValidity;
 
     if (type === "valid") {

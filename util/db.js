@@ -15,7 +15,7 @@ module.exports.createUser = async function (username, hashedPassword, company_id
    
 }
 
-module.exports.checkCompany = async function (company_id, pool) {
+module.exports.getCompany = async function (company_id, pool) {
 
     const sqlSearch = `SELECT * FROM ${DB_COMPANIES_TABLE} WHERE id = ?`;
     const search_query = mysql.format(sqlSearch, [company_id]);
