@@ -21,7 +21,8 @@ module.exports.getCompany = async function (company_id, pool) {
     const search_query = mysql.format(sqlSearch, [company_id]);
 
     try {
-        return await pool.query(search_query);
+        const [company] = await pool.query(search_query);
+        return company;
     } catch (err) {
         return err;
     }
@@ -46,9 +47,24 @@ module.exports.getUser = async function (username, pool) {
     const search_query = mysql.format(sqlSearch, [username]);
 
     try {
-        return await pool.query(search_query);
+        const [user] = await pool.query(search_query);
+        return user;
     } catch (err) {
         return err;
     }
 
+}
+
+
+module.exports.setPassword = async function (username, newPassword, pool) {
+    
+    const sqlInsert = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE username = ?`;
+    const insert_query = mysql.format(sqlInsert, [newPassword, username]);
+
+    try {
+        const data = await pool.query(insert_query);
+        return data;
+    } catch (err) {
+        return err;
+    }
 }

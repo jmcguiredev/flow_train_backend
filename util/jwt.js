@@ -10,12 +10,14 @@ module.exports.verifyToken = function (token) {
 
     let result = {
         type: "",
-        message: ""
+        message: "",
+        username: ""
     };
     try {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
         if (decoded.exp * 1000 >= Date.now()) {
             result.type = "valid";
+            result.username = decoded.user;
         } 
     } catch (err) {
         result.type = "invalid";

@@ -5,7 +5,7 @@ const util = require('util');
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, getCompany, createCompany } = require("./util/db");
+const { createUser, getUser, getCompany, createCompany, setPassword } = require("./util/db");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -56,7 +56,7 @@ app.post('/register', async (req, res) => {
     }
 
     const user = await getUser(username, pool);
-    if (user[0]) {
+    if (user) {
         console.log("------> User already exists");
         res.sendStatus(409);
         return;
@@ -68,7 +68,7 @@ app.post('/register', async (req, res) => {
         // Check if company exists
         const company = await getCompany(company_id, pool);
 
-        if (company[0]) {
+        if (company) {
             // Create User
             const user = await createUser(username, hashedPassword, company_id, isAdmin, pool, res);
             if (user.insertId) {
@@ -117,8 +117,8 @@ app.get('/login', async (req, res) => {
     const password = req.body.password;
 
     const user = await getUser(username, pool);
-    if (user[0]) {
-        const hashedPassword = user[0].password;
+    if (user) {
+        const hashedPassword = user.password;
         const isCorrect = await bcrypt.compare(password, hashedPassword);
         if (isCorrect) {
             // correct password
@@ -134,18 +134,41 @@ app.get('/login', async (req, res) => {
     }
 });
 
-app.get('/profile', (req, res) => {
+app.get('/user', async (req, res) => {
 
-    const token = req.body.token;
-    const tokenValidity = verifyToken(token);
-    const { type, message } = tokenValidity;
-
-    if (type === "valid") {
-        res.status(200).send();
-    } else if (type === "expired") {
-        res.status(401).send();
-    } else {
-        res.status(400).send();
+    const { type, message, username } = verifyToken(req.body.token);
+    if(type === 'expired' || type === 'invalid') {
+        res.status(401).send('Unauthorized');
+        return;
     }
+        const user = await getUser(username, pool);
+        res.status(200).json({ 
+            username: user.username,
+            company_id: user.company_id,
+            isAdmin: user.isAdmin
+        }).send();
+    
     console.log(message);
 });
+
+app.put('/password', async (req, res) => {
+
+    const { type, message, username } = verifyToken(req.body.token);
+    if(type === 'expired' || type === 'invalid') {
+        res.status(401).send('Unauthorized');
+        return;
+    }
+
+    const user = await getUser(username, pool);
+    const hashedPassword = user.password;
+    const isEqual = bcrypt.compare(req.body.password, hashedPassword);
+    if(isEqual) {
+        const newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+        const data = await setPassword(username, req.body.newPassword, pool);
+        res.status(204).send('Updated Password');
+    } else {
+        res.status(400).send('Incorrect Password');
+    }
+    
+});
+
