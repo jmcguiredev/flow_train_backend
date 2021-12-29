@@ -1,9 +1,12 @@
 const express = require("express");
 const app = express();
 const mysql = require("mysql");
+const util = require('util');
 require("dotenv").config();
 const bcrypt = require("bcrypt");
-const { verifyToken, generateAccessToken } = require("./jwt");
+const { verifyToken, generateAccessToken } = require("./util/jwt");
+const { createUser, getUser, checkCompany, createCompany } = require(".//util/db");
+const { create } = require("domain");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -12,9 +15,10 @@ const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
 const DB_PORT = process.env.DB_PORT;
 const DB_USERS_TABLE = process.env.DB_USERS_TABLE;
+const DB_COMPANIES_TABLE = process.env.DB_COMPANIES_TABLE;
 const port = process.env.PORT;
 
-const db = mysql.createPool({
+const pool = mysql.createPool({
     connectionLimit: 100,
     host: DB_HOST,
     user: DB_USER,
@@ -23,7 +27,9 @@ const db = mysql.createPool({
     port: DB_PORT
 });
 
-db.getConnection((err, connection) => {
+pool.query = util.promisify(pool.query);
+
+pool.getConnection((err, connection) => {
     if (err) throw (err)
     console.log("DB connected successful: " + connection.threadId);
 });
@@ -32,49 +38,80 @@ app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
 
 
+
+
 app.post('/register', async (req, res) => {
 
-    const user = req.body.username;
+    const username = req.body.username;
+    const password = req.body.password;
+    const isAdmin = req.body.isAdmin;
+    const companyName = req.body.companyName;
+    let company_id = req.body.company_id;
+
     let hashedPassword = "";
 
     try {
-        hashedPassword = await bcrypt.hash(req.body.password, 10);
+        hashedPassword = await bcrypt.hash(password, 10);
     } catch (err) {
-        console.log('ERROR: ', err);
+        console.log('Password Hash Error: ', err);
+        res.send(401);
+        return;
     }
 
+    const user = await getUser(username, pool);
+    if (user[0]) {
+        console.log("------> User already exists");
+        res.sendStatus(409);
+        return;
+    }
 
-    db.getConnection(async (err, connection) => {
+    if (!isAdmin) {
+        // Creating 'Agent' user account
 
-        if (err) throw (err);
+        // Check if company exists
+        const company = await checkCompany(company_id, pool);
 
-        const sqlSearch = `SELECT * FROM ${DB_USERS_TABLE} WHERE username = ?`;
-        const search_query = mysql.format(sqlSearch, [user]);
-        const sqlInsert = `INSERT INTO ${DB_USERS_TABLE} VALUES (NULL,?,?)`;
-        const insert_query = mysql.format(sqlInsert, [user, hashedPassword]);
-
-        connection.query(search_query, async (err, result) => {
-
-            if (err) throw (err);
-            console.log("------> Search Results");
-            console.log(result.length);
-
-            if (result.length != 0) {
-                connection.release();
-                console.log("------> User already exists");
-                res.sendStatus(409);
+        if (company[0]) {
+            // Create User
+            const user = await createUser(username, hashedPassword, company_id, isAdmin, pool, res);
+            if (user.insertId) {
+                console.log("--------> Created new User");
+                res.sendStatus(201);
+            } else {
+                console.log('Could not create user: ', user.sqlMessage);
             }
-            else {
-                connection.query(insert_query, (err, result) => {
-                    connection.release();
-                    if (err) throw (err);
-                    console.log("--------> Created new User");
-                    console.log(result.insertId);
-                    res.sendStatus(201);
-                });
+
+        } else {
+            console.log('Could not find company: ', company.sqlMessage);
+            res.status(409).send('Invalid Company ID');
+        }
+    } else if (isAdmin) {
+        // Creating 'Admin' user account
+
+        const company = await createCompany(companyName, pool);
+        if (company.insertId) {
+            console.log("--------> Created new Company");
+            company_id = company.insertId;
+            // Create User
+            const user = await createUser(username, hashedPassword, company_id, isAdmin, pool, res);
+            if (user.insertId) {
+                console.log("--------> Created new User");
+                res.sendStatus(201);
+            } else {
+                console.log('Could not create user: ', user.sqlMessage);
+                res.status(400).send('Could not create user')
             }
-        });
-    });
+        } else {
+            console.log('Could not create company: ', company.sqlMessage);
+            res.status(400).send('Could not create company');
+        }
+    } else {
+        res.status(400).send('Invalid Request');
+    }
+
+    
+    
+
 });
 
 app.get('/login', async (req, res) => {
@@ -82,46 +119,30 @@ app.get('/login', async (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
 
-    db.getConnection(async (err, connection) => {
-        if (err) throw (err);
-
-        const sqlSearch = `SELECT password FROM ${DB_USERS_TABLE} WHERE username = ?`;
-        const search_query = mysql.format(sqlSearch, [username]);
-
-        connection.query(search_query, async(err, result) => {
-            if(err) throw (err);
-
-            if(result.length != 0) {
-                // user found
-                const hashedPassword = result[0].password;
-
-                let isCorrect = await bcrypt.compare(password, hashedPassword);
-
-                if(isCorrect) {
-                    // correct password
-                    const token = generateAccessToken(username);
-                    res.status(200).json({ accessToken: token });
-                } else {
-                    // incorrect password
-                    res.sendStatus(401);
-                }
-
-            } else {
-                connection.release();
-                console.log('User not found!');
-                res.sendStatus(404);
-            }
-        });
-    });
+    const user = await getUser(username, pool);
+    if (user[0]) {
+        const hashedPassword = user[0].password;
+        const isCorrect = await bcrypt.compare(password, hashedPassword);
+        if (isCorrect) {
+            // correct password
+            const token = generateAccessToken(username);
+            res.status(200).json({ accessToken: token });
+        } else {
+            // incorrect password
+            res.status(401).send('Username or Password Incorrect');
+        }
+    } else {
+        res.status(401).send('Username or Password Incorrect');
+        return;
+    }
 });
 
 app.get('/profile', (req, res) => {
 
     const tokenValidity = verifyToken(req.body.token);
-
     const { type, message } = tokenValidity;
 
-    if(type === "valid") {
+    if (type === "valid") {
         res.status(200).send();
     } else if (type === "expired") {
         res.status(401).send();
@@ -129,5 +150,4 @@ app.get('/profile', (req, res) => {
         res.status(400).send();
     }
     console.log(message);
-    
 });
