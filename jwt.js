@@ -1,14 +1,28 @@
 const jwt = require("jsonwebtoken");
 
+TOKEN_EXPIRE_TIME = process.env.TOKEN_EXPIRE_TIME;
+
 module.exports.generateAccessToken = function (username) {
-return jwt.sign(username, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "15m"});
+    return jwt.sign({ user: username }, process.env.ACCESS_TOKEN_SECRET, {expiresIn: TOKEN_EXPIRE_TIME});
 }
 
 module.exports.verifyToken = function (token) {
+
+    let result = {
+        type: "",
+        message: ""
+    };
     try {
-        let decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-        return decoded;
-    } catch(err) {
-        return err;
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        if (decoded.exp * 1000 >= Date.now()) {
+            result.type = "valid";
+        } 
+    } catch (err) {
+        result.type = "invalid";
+        if(err.expiredAt) {
+            result.type = "expired";
+        }
     }
+    result.message = `Provided token is ${result.type}.`;
+    return result;
 }
