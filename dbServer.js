@@ -3,7 +3,8 @@ const app = express();
 const mysql = require("mysql");
 require("dotenv").config();
 const bcrypt = require("bcrypt");
-const generateAccessToken = require("./generateAccessToken");
+const { generateAccessToken, verifyToken } = require("./jwt");
+const { sign, verify } = require("jsonwebtoken");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -40,7 +41,7 @@ app.post('/register', async (req, res) => {
     try {
         hashedPassword = await bcrypt.hash(req.body.password, 10);
     } catch (err) {
-        console.log('ERROR, ERROR: ', err);
+        console.log('ERROR: ', err);
     }
 
 
@@ -99,7 +100,8 @@ app.get('/login', async (req, res) => {
 
                 if(isCorrect) {
                     // correct password
-                    const token = generateAccessToken({ user: username });
+                    const expireTime = '1m';
+                    const token = sign({ user: username }, process.env.ACCESS_TOKEN_SECRET, {expiresIn: expireTime});
                     res.status(200).json({ accessToken: token });
                 } else {
                     // incorrect password
@@ -113,4 +115,25 @@ app.get('/login', async (req, res) => {
             }
         });
     });
+});
+
+app.get('/profile', (req, res) => {
+
+    const token = req.body.token;
+
+    try {
+        const decoded = verify(token, process.env.ACCESS_TOKEN_SECRET);
+        console.log(decoded);
+        console.log('Date Now: ', Date.now());
+        const { user, iat, exp } = decoded;
+        if(exp * 1000 >= Date.now()) {
+            res.status(200).send('Token is valid.');
+        } else {
+            res.status(401).send('Token is expired.');
+        }
+    } catch(err) {
+        res.status(400).send('Token is invalid.');
+    }
+    
+    
 });
