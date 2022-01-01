@@ -8,11 +8,6 @@ app.use(express.json());
 
 const port = process.env.PORT;
 
-// .getConnection((err, connection) => {
-//     if (err) throw (err)
-//     console.log("DB connected successful: " + connection.threadId);
-// });
-
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
 
@@ -135,7 +130,7 @@ app.get('/login', async (req, res) => {
         return;
     }
     if (isCorrect) {
-        const token = generateAccessToken(username);
+        const token = generateAccessToken(username, user.id, user.company_id, user.isAdmin);
         res.status(200).json({ token: token }); // correct password
     } else {
         res.sendStatus(401); // incorrect password
@@ -143,60 +138,60 @@ app.get('/login', async (req, res) => {
 
 });
 
-app.get('/user', async (req, res) => {
+// app.get('/user', async (req, res) => {
 
-    let username;
-    try {
-        username = verifyToken(req.body.token);
-    } catch (err) {
-        res.sendStatus(401); // could not verify token
-        return;
-    }
+//     let username;
+//     try {
+//         username = verifyToken(req.body.token);
+//     } catch (err) {
+//         res.sendStatus(401); // could not verify token
+//         return;
+//     }
 
-    let user;
-    try {
-        user = await getUser(username, );
-    } catch (err) {
-        res.sendStatus(500); // SQL error getting user
-        return;
-    }
-    if (!user) {
-        res.sendStatus(404); // user not found
-        return;
-    }
-    res.status(200).json({
-        username: user.username,
-        company_id: user.company_id,
-        isAdmin: user.isAdmin
-    }).send();
-});
+//     let user;
+//     try {
+//         user = await getUser(username);
+//     } catch (err) {
+//         res.sendStatus(500); // SQL error getting user
+//         return;
+//     }
+//     if (!user) {
+//         res.sendStatus(404); // user not found
+//         return;
+//     }
+//     res.status(200).json({
+//         username: user.username,
+//         company_id: user.company_id,
+//         isAdmin: user.isAdmin
+//     }).send();
+// });
 
 app.put('/password', async (req, res) => {
 
-    let username;
+    let user;
     try {
-        username = verifyToken(req.body.token);
+        user = verifyToken(req.body.token);
     } catch (err) {
         res.sendStatus(401); // could not verify token
         return;
     }
 
-    let user;
+    let dbUser;
     try {
-        user = await getUser(username, );
+        dbUser = await getUser(user.username);
     } catch (err) {
         res.sendStatus(500); // SQL error getting user
         return;
     }
-    if (!user) {
+    if (!dbUser) {
         res.sendStatus(404); // user not found
         return;
     }
 
-    const hashedPassword = user.password;
     let isEqual;
     try {
-        isEqual = bcrypt.compare(req.body.password, hashedPassword);
+        isEqual = await bcrypt.compare(req.body.password, dbUser.password);
+        console.log('isEqual : ', isEqual);
     } catch (err) {
         res.sendStatus(500); // error comparing hash
         return;
@@ -215,11 +210,13 @@ app.put('/password', async (req, res) => {
         return;
     }
     try {
-        const data = await setPassword(username, newHashedPassword, );
+        let data = await setPassword(user.id, newHashedPassword);
         console.log(data);
         res.sendStatus(204); // updated password
+        return;
     } catch(err) {
         res.sendStatus(409); // Unable to update password
+        return;
     }
     
 });

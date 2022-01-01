@@ -21,11 +21,6 @@ const pool = mysql.createPool({
 
 pool.query = util.promisify(pool.query);
 
-pool.getConnection((err, connection) => {
-    if (err) throw (err)
-    console.log("DB connected successful: " + connection.threadId);
-});
-
 module.exports.createUser = async function (username, hashedPassword, company_id, isAdmin) {
 
     const sqlInsert = `INSERT INTO ${DB_USERS_TABLE} VALUES (NULL,?,?,?,?)`;
@@ -100,10 +95,10 @@ module.exports.createCompany = async function (companyName) {
     
 }
 
-module.exports.setPassword = async function (username, newPassword) {
+module.exports.setPassword = async function (id, newPassword) {
     
-    const sqlInsert = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE username = ?`;
-    const insert_query = mysql.format(sqlInsert, [newPassword, username]);
+    const sqlInsert = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE id = ?`;
+    const insert_query = mysql.format(sqlInsert, [newPassword, id]);
 
     try {
         const data = await pool.query(insert_query);
