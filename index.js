@@ -96,10 +96,8 @@ app.post('/register', async (req, res) => {
             return;
         }
 
-
     } else if (isAdmin) {
         // Creating 'Admin' user account
-
         let newCompanyId;
         try {
             newCompanyId = await createCompany(companyName, pool); // create company
@@ -109,8 +107,6 @@ app.post('/register', async (req, res) => {
         if (!newCompanyId) {
             res.send(409); // confilt, no ID provided
         }
-
-
         // Create User
         let newUserId;
         try {
@@ -126,14 +122,9 @@ app.post('/register', async (req, res) => {
             res.sendStatus(409); // no SQL error, but no user ID provided back
             return;
         }
-
     } else {
-        res.status(400).send('Invalid Request'); // Invalid isAdmin field
+        res.sendStatus(400); // Invalid isAdmin field
     }
-
-
-
-
 });
 
 app.get('/login', async (req, res) => {
@@ -141,22 +132,35 @@ app.get('/login', async (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
 
-    const user = await getUser(username, pool);
-    if (user) {
-        const hashedPassword = user.password;
-        const isCorrect = await bcrypt.compare(password, hashedPassword);
-        if (isCorrect) {
-            // correct password
-            const token = generateAccessToken(username);
-            res.status(200).json({ token: token });
-        } else {
-            // incorrect password
-            res.status(401).send('Username or Password Incorrect');
-        }
-    } else {
-        res.status(401).send('Username or Password Incorrect');
+    let user;
+    try {
+        user = await getUser(username, pool);
+    } catch (err) {
+        res.sendStatus(500); // getUser SQL error
         return;
     }
+    if (!user) {
+        res.sendStatus(401); // Unauthorized - could not find user
+        return;
+    }
+
+    const hashedPassword = user.password;
+    let isCorrect;
+    try {
+        isCorrect = await bcrypt.compare(password, hashedPassword);
+    } catch(err) {
+        res.sendStatus(500); // Error comparing hash
+        return;
+    }
+    if (isCorrect) {
+        // correct password
+        const token = generateAccessToken(username);
+        res.status(200).json({ token: token });
+    } else {
+        // incorrect password
+        res.sendStatus(401);
+    }
+
 });
 
 app.get('/user', async (req, res) => {
