@@ -1,8 +1,32 @@
 const DB_USERS_TABLE = process.env.DB_USERS_TABLE;
 const DB_COMPANIES_TABLE = process.env.DB_COMPANIES_TABLE;
 const mysql = require("mysql");
+const util = require('util');
 
-module.exports.createUser = async function (username, hashedPassword, company_id, isAdmin, pool) {
+const DB_HOST = process.env.DB_HOST;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_DATABASE = process.env.DB_DATABASE;
+const DB_PORT = process.env.DB_PORT;
+
+
+const pool = mysql.createPool({
+    connectionLimit: 100,
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    database: DB_DATABASE,
+    port: DB_PORT
+});
+
+pool.query = util.promisify(pool.query);
+
+pool.getConnection((err, connection) => {
+    if (err) throw (err)
+    console.log("DB connected successful: " + connection.threadId);
+});
+
+module.exports.createUser = async function (username, hashedPassword, company_id, isAdmin) {
 
     const sqlInsert = `INSERT INTO ${DB_USERS_TABLE} VALUES (NULL,?,?,?,?)`;
     const insert_query = mysql.format(sqlInsert, [username, hashedPassword, company_id, isAdmin]);
@@ -17,7 +41,7 @@ module.exports.createUser = async function (username, hashedPassword, company_id
    
 }
 
-module.exports.getUser = async function (username, pool) {
+module.exports.getUser = async function (username) {
 
     const sqlSearch = `SELECT * FROM ${DB_USERS_TABLE} WHERE username = ?`;
     const search_query = mysql.format(sqlSearch, [username]);
@@ -32,7 +56,7 @@ module.exports.getUser = async function (username, pool) {
 
 }
 
-module.exports.deleteUser = async function (username, pool) {
+module.exports.deleteUser = async function (username) {
 
     const sqlDelete = `DELETE FROM ${DB_USERS_TABLE} WHERE username = ?`;
     const delete_query = mysql.format(sqlDelete, [username]);
@@ -42,11 +66,12 @@ module.exports.deleteUser = async function (username, pool) {
         return result;
     }
     catch (err) {
-        return err;
+        console.log('[deleteUser] : ', err);
+        throw err;
     }
 }
 
-module.exports.getCompany = async function (company_id, pool) {
+module.exports.getCompany = async function (company_id) {
 
     const sqlSearch = `SELECT * FROM ${DB_COMPANIES_TABLE} WHERE id = ?`;
     const search_query = mysql.format(sqlSearch, [company_id]);
@@ -60,7 +85,7 @@ module.exports.getCompany = async function (company_id, pool) {
     }
 }
 
-module.exports.createCompany = async function (companyName, pool) {
+module.exports.createCompany = async function (companyName) {
 
     const sqlInsert = `INSERT INTO ${DB_COMPANIES_TABLE} VALUES (NULL,?)`;
     const insert_query = mysql.format(sqlInsert, [companyName]);
@@ -75,7 +100,7 @@ module.exports.createCompany = async function (companyName, pool) {
     
 }
 
-module.exports.setPassword = async function (username, newPassword, pool) {
+module.exports.setPassword = async function (username, newPassword) {
     
     const sqlInsert = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE username = ?`;
     const insert_query = mysql.format(sqlInsert, [newPassword, username]);
@@ -86,4 +111,8 @@ module.exports.setPassword = async function (username, newPassword, pool) {
     } catch (err) {
         return err;
     }
+}
+
+async function authorizeAsAdmin(username) {
+    
 }

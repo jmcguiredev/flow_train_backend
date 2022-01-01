@@ -1,35 +1,17 @@
 const express = require("express");
 const app = express();
-const mysql = require("mysql");
-const util = require('util');
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { createUser, getUser, getCompany, createCompany, setPassword, deleteUser } = require("./util/db");
 app.use(express.json());
 
-const DB_HOST = process.env.DB_HOST;
-const DB_USER = process.env.DB_USER;
-const DB_PASSWORD = process.env.DB_PASSWORD;
-const DB_DATABASE = process.env.DB_DATABASE;
-const DB_PORT = process.env.DB_PORT;
 const port = process.env.PORT;
 
-const pool = mysql.createPool({
-    connectionLimit: 100,
-    host: DB_HOST,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    database: DB_DATABASE,
-    port: DB_PORT
-});
-
-pool.query = util.promisify(pool.query);
-
-pool.getConnection((err, connection) => {
-    if (err) throw (err)
-    console.log("DB connected successful: " + connection.threadId);
-});
+// .getConnection((err, connection) => {
+//     if (err) throw (err)
+//     console.log("DB connected successful: " + connection.threadId);
+// });
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
@@ -55,7 +37,7 @@ app.post('/register', async (req, res) => {
 
     let user;
     try {
-        user = await getUser(username, pool);
+        user = await getUser(username);
     } catch (err) {
         res.sendStatus(500); // User SQL query error
         return;
@@ -70,7 +52,7 @@ app.post('/register', async (req, res) => {
         // Check if company exists
         let company;
         try {
-            company = await getCompany(company_id, pool);
+            company = await getCompany(company_id);
         } catch (err) {
             res.sendStatus(400); // User is not admin, but provided company ID does not exist
             return;
@@ -83,7 +65,7 @@ app.post('/register', async (req, res) => {
         // Create User
         let newUserId;
         try {
-            newUserId = await createUser(username, hashedPassword, company_id, isAdmin, pool);
+            newUserId = await createUser(username, hashedPassword, company_id, isAdmin);
         } catch (err) {
             res.sendStatus(400); // createUser SQL error
             return;
@@ -100,7 +82,7 @@ app.post('/register', async (req, res) => {
         // Creating 'Admin' user account
         let newCompanyId;
         try {
-            newCompanyId = await createCompany(companyName, pool); // create company
+            newCompanyId = await createCompany(companyName); // create company
         } catch (err) {
             res.send(500); // SQL error creating company
         }
@@ -110,7 +92,7 @@ app.post('/register', async (req, res) => {
         // Create User
         let newUserId;
         try {
-            newUserId = await createUser(username, hashedPassword, newCompanyId, isAdmin, pool);
+            newUserId = await createUser(username, hashedPassword, newCompanyId, isAdmin);
         } catch (err) {
             res.sendStatus(400); // createUser SQL error
             return;
@@ -134,7 +116,7 @@ app.get('/login', async (req, res) => {
 
     let user;
     try {
-        user = await getUser(username, pool);
+        user = await getUser(username);
     } catch (err) {
         res.sendStatus(500); // getUser SQL error
         return;
@@ -173,7 +155,7 @@ app.get('/user', async (req, res) => {
 
     let user;
     try {
-        user = await getUser(username, pool);
+        user = await getUser(username, );
     } catch (err) {
         res.sendStatus(500); // SQL error getting user
         return;
@@ -201,7 +183,7 @@ app.put('/password', async (req, res) => {
 
     let user;
     try {
-        user = await getUser(username, pool);
+        user = await getUser(username, );
     } catch (err) {
         res.sendStatus(500); // SQL error getting user
         return;
@@ -233,7 +215,7 @@ app.put('/password', async (req, res) => {
         return;
     }
     try {
-        const data = await setPassword(username, newHashedPassword, pool);
+        const data = await setPassword(username, newHashedPassword, );
         console.log(data);
         res.sendStatus(204); // updated password
     } catch(err) {
@@ -244,21 +226,43 @@ app.put('/password', async (req, res) => {
 
 app.delete('/user', async (req, res) => {
 
-    const { type, message, username } = verifyToken(req.body.token);
-    if (type === 'expired' || type === 'invalid') {
-        res.status(401).send('Unauthorized');
+    let username;
+    try {
+        username = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
         return;
     }
 
-    const result = await deleteUser(username, pool);
+    let result;
+    try { 
+        result = await deleteUser(username, );
+    } catch(err) {
+        res.sendStatus(500); // Error deleting user
+        return;
+    }
     if (!result) {
-        res.status(400).send('Error deleting user');
+        res.sendStatus(400); // Could not find user
+        return;
     }
 
     if (result.affectedRows > 0) {
-        res.status(204).send('User deleted');
+        res.sendStatus(204); // User deleted
     } else {
-        res.status(400).send('User not found');
+        res.sendStatus(400); // User not found
     }
+});
+
+app.post('/group', (req, res) => {
+
+    let username;
+    try {
+        username = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
+        return;
+    }
+
+
 });
 
