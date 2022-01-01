@@ -7,24 +7,13 @@ module.exports.generateAccessToken = function (username) {
 }
 
 module.exports.verifyToken = function (token) {
-
-    let result = {
-        type: "",
-        message: "",
-        username: ""
-    };
     try {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
         if (decoded.exp * 1000 >= Date.now()) {
-            result.type = "valid";
-            result.username = decoded.user;
+            return decoded.user;
         } 
     } catch (err) {
-        result.type = "invalid";
-        if(err.expiredAt) {
-            result.type = "expired";
-        }
+        console.log('[verifyToken] : ', err);
+        throw err;
     }
-    result.message = `Provided token is ${result.type}.`;
-    return result;
 }

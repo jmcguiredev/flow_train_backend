@@ -148,26 +148,26 @@ app.get('/login', async (req, res) => {
     let isCorrect;
     try {
         isCorrect = await bcrypt.compare(password, hashedPassword);
-    } catch(err) {
+    } catch (err) {
         res.sendStatus(500); // Error comparing hash
         return;
     }
     if (isCorrect) {
-        // correct password
         const token = generateAccessToken(username);
-        res.status(200).json({ token: token });
+        res.status(200).json({ token: token }); // correct password
     } else {
-        // incorrect password
-        res.sendStatus(401);
+        res.sendStatus(401); // incorrect password
     }
 
 });
 
 app.get('/user', async (req, res) => {
 
-    const { type, message, username } = verifyToken(req.body.token);
-    if (type === 'expired' || type === 'invalid') {
-        res.status(401).send('Unauthorized');
+    let username;
+    try {
+        username = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
         return;
     }
 
@@ -175,15 +175,13 @@ app.get('/user', async (req, res) => {
     try {
         user = await getUser(username, pool);
     } catch (err) {
-        res.status(400).send('Error retrieving user');
+        res.sendStatus(500); // SQL error getting user
         return;
     }
-
     if (!user) {
-        res.status(400).send('User empty');
+        res.sendStatus(404); // user not found
         return;
     }
-
     res.status(200).json({
         username: user.username,
         company_id: user.company_id,
@@ -193,26 +191,55 @@ app.get('/user', async (req, res) => {
 
 app.put('/password', async (req, res) => {
 
-    const { type, message, username } = verifyToken(req.body.token);
-    if (type === 'expired' || type === 'invalid') {
-        res.status(401).send('Unauthorized');
+    let username;
+    try {
+        username = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
         return;
     }
 
-    const user = await getUser(username, pool);
-    if (!user) {
-        res.status(400).send('Error retrieving user');
+    let user;
+    try {
+        user = await getUser(username, pool);
+    } catch (err) {
+        res.sendStatus(500); // SQL error getting user
+        return;
     }
-    const hashedPassword = user.password;
-    const isEqual = bcrypt.compare(req.body.password, hashedPassword);
-    if (isEqual) {
-        const newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
-        const data = await setPassword(username, newHashedPassword, pool);
-        res.status(204).send('Updated Password');
-    } else {
-        res.status(400).send('Incorrect Password');
+    if (!user) {
+        res.sendStatus(404); // user not found
+        return;
     }
 
+    const hashedPassword = user.password;
+    let isEqual;
+    try {
+        isEqual = bcrypt.compare(req.body.password, hashedPassword);
+    } catch (err) {
+        res.sendStatus(500); // error comparing hash
+        return;
+    }
+    if (!isEqual) {
+        res.sendStatus(401); // Incorrect password
+        return;
+    }
+
+
+    let newHashedPassword;
+    try {
+        newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+    } catch (err) {
+        res.sendStatus(500); // error hashing password
+        return;
+    }
+    try {
+        const data = await setPassword(username, newHashedPassword, pool);
+        console.log(data);
+        res.sendStatus(204); // updated password
+    } catch(err) {
+        res.sendStatus(409); // Unable to update password
+    }
+    
 });
 
 app.delete('/user', async (req, res) => {
