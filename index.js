@@ -5,7 +5,7 @@ const util = require('util');
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, getCompany, createCompany, setPassword } = require("./util/db");
+const { createUser, getUser, getCompany, createCompany, setPassword, deleteUser } = require("./util/db");
 app.use(express.json());
 
 const DB_HOST = process.env.DB_HOST;
@@ -45,69 +45,94 @@ app.post('/register', async (req, res) => {
     const companyName = req.body.companyName;
     let company_id = req.body.company_id;
 
-    let hashedPassword = "";
-
+    let hashedPassword;
     try {
         hashedPassword = await bcrypt.hash(password, 10);
     } catch (err) {
-        console.log('Password Hash Error: ', err);
-        res.send(401);
+        res.status(400).sendStatus(500); // error hashing password
         return;
     }
 
-    const user = await getUser(username, pool);
+    let user;
+    try {
+        user = await getUser(username, pool);
+    } catch (err) {
+        res.sendStatus(500); // User SQL query error
+        return;
+    }
     if (user) {
-        console.log("------> User already exists");
-        res.sendStatus(409);
+        res.sendStatus(409); // Username already taken
         return;
     }
 
     if (!isAdmin) {
         // Creating 'Agent' user account
-
         // Check if company exists
-        const company = await getCompany(company_id, pool);
-
-        if (company) {
-            // Create User
-            const user = await createUser(username, hashedPassword, company_id, isAdmin, pool, res);
-            if (user.insertId) {
-                console.log("--------> Created new User");
-                res.sendStatus(201);
-            } else {
-                console.log('Could not create user: ', user.sqlMessage);
-            }
-
-        } else {
-            console.log('Could not find company: ', company.sqlMessage);
-            res.status(409).send('Invalid Company ID');
+        let company;
+        try {
+            company = await getCompany(company_id, pool);
+        } catch (err) {
+            res.sendStatus(400); // User is not admin, but provided company ID does not exist
+            return;
         }
+        if (!company) {
+            res.sendStatus(400); // no SQL err, but company ID not found
+            return;
+        }
+
+        // Create User
+        let newUserId;
+        try {
+            newUserId = await createUser(username, hashedPassword, company_id, isAdmin, pool);
+        } catch (err) {
+            res.sendStatus(400); // createUser SQL error
+            return;
+        }
+        if (newUserId) {
+            res.sendStatus(204); // User created successfully
+            return;
+        } else {
+            res.sendStatus(409); // no SQL error, but no user ID provided back
+            return;
+        }
+
+
     } else if (isAdmin) {
         // Creating 'Admin' user account
 
-        const company = await createCompany(companyName, pool);
-        if (company.insertId) {
-            console.log("--------> Created new Company");
-            company_id = company.insertId;
-            // Create User
-            const user = await createUser(username, hashedPassword, company_id, isAdmin, pool, res);
-            if (user.insertId) {
-                console.log("--------> Created new User");
-                res.sendStatus(201);
-            } else {
-                console.log('Could not create user: ', user.sqlMessage);
-                res.status(400).send('Could not create user')
-            }
-        } else {
-            console.log('Could not create company: ', company.sqlMessage);
-            res.status(400).send('Could not create company');
+        let newCompanyId;
+        try {
+            newCompanyId = await createCompany(companyName, pool); // create company
+        } catch (err) {
+            res.send(500); // SQL error creating company
         }
+        if (!newCompanyId) {
+            res.send(409); // confilt, no ID provided
+        }
+
+
+        // Create User
+        let newUserId;
+        try {
+            newUserId = await createUser(username, hashedPassword, newCompanyId, isAdmin, pool);
+        } catch (err) {
+            res.sendStatus(400); // createUser SQL error
+            return;
+        }
+        if (newUserId) {
+            res.sendStatus(204); // User created successfully
+            return;
+        } else {
+            res.sendStatus(409); // no SQL error, but no user ID provided back
+            return;
+        }
+
     } else {
-        res.status(400).send('Invalid Request');
+        res.status(400).send('Invalid Request'); // Invalid isAdmin field
     }
 
-    
-    
+
+
 
 });
 
@@ -123,7 +148,7 @@ app.get('/login', async (req, res) => {
         if (isCorrect) {
             // correct password
             const token = generateAccessToken(username);
-            res.status(200).json({ accessToken: token });
+            res.status(200).json({ token: token });
         } else {
             // incorrect password
             res.status(401).send('Username or Password Incorrect');
@@ -137,38 +162,72 @@ app.get('/login', async (req, res) => {
 app.get('/user', async (req, res) => {
 
     const { type, message, username } = verifyToken(req.body.token);
-    if(type === 'expired' || type === 'invalid') {
+    if (type === 'expired' || type === 'invalid') {
         res.status(401).send('Unauthorized');
         return;
     }
-        const user = await getUser(username, pool);
-        res.status(200).json({ 
-            username: user.username,
-            company_id: user.company_id,
-            isAdmin: user.isAdmin
-        }).send();
-    
-    console.log(message);
+
+    let user;
+    try {
+        user = await getUser(username, pool);
+    } catch (err) {
+        res.status(400).send('Error retrieving user');
+        return;
+    }
+
+    if (!user) {
+        res.status(400).send('User empty');
+        return;
+    }
+
+    res.status(200).json({
+        username: user.username,
+        company_id: user.company_id,
+        isAdmin: user.isAdmin
+    }).send();
 });
 
 app.put('/password', async (req, res) => {
 
     const { type, message, username } = verifyToken(req.body.token);
-    if(type === 'expired' || type === 'invalid') {
+    if (type === 'expired' || type === 'invalid') {
         res.status(401).send('Unauthorized');
         return;
     }
 
     const user = await getUser(username, pool);
+    if (!user) {
+        res.status(400).send('Error retrieving user');
+    }
     const hashedPassword = user.password;
     const isEqual = bcrypt.compare(req.body.password, hashedPassword);
-    if(isEqual) {
+    if (isEqual) {
         const newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
-        const data = await setPassword(username, req.body.newPassword, pool);
+        const data = await setPassword(username, newHashedPassword, pool);
         res.status(204).send('Updated Password');
     } else {
         res.status(400).send('Incorrect Password');
     }
-    
+
+});
+
+app.delete('/user', async (req, res) => {
+
+    const { type, message, username } = verifyToken(req.body.token);
+    if (type === 'expired' || type === 'invalid') {
+        res.status(401).send('Unauthorized');
+        return;
+    }
+
+    const result = await deleteUser(username, pool);
+    if (!result) {
+        res.status(400).send('Error deleting user');
+    }
+
+    if (result.affectedRows > 0) {
+        res.status(204).send('User deleted');
+    } else {
+        res.status(400).send('User not found');
+    }
 });
 
