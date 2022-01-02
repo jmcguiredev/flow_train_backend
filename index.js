@@ -3,10 +3,17 @@ const app = express();
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, getCompany, createCompany, setPassword, deleteUser } = require("./util/db");
+const { createUser, getUser, getCompany, createCompany, setPassword, deleteUser, updateCompanyOwner } = require("./util/db");
 app.use(express.json());
+const Hashids = require('hashids/cjs');
 
+
+const USERID_SALT = process.env.USERID_SALT;
+const COMPANYID_SALT = process.env.COMPANYID_SALT;
 const port = process.env.PORT;
+
+const userIdHashId = new Hashids(USERID_SALT, 8);
+const companyIdHashId = new Hashids(USERID_SALT, 4);
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
@@ -47,7 +54,7 @@ app.post('/register', async (req, res) => {
         // Check if company exists
         let company;
         try {
-            company = await getCompany(company_id);
+            company = await getCompany(companyIdHashId.decode(company_id));
         } catch (err) {
             res.sendStatus(400); // User is not admin, but provided company ID does not exist
             return;
@@ -77,12 +84,14 @@ app.post('/register', async (req, res) => {
         // Creating 'Admin' user account
         let newCompanyId;
         try {
-            newCompanyId = await createCompany(companyName); // create company
+            newCompanyId = await createCompany(companyName, null); // create company
+            console.log('new id', newCompanyId);
         } catch (err) {
-            res.send(500); // SQL error creating company
+            res.sendStatus(500); // SQL error creating company
+            return;
         }
         if (!newCompanyId) {
-            res.send(409); // confilt, no ID provided
+            res.sendStatus(409); // confilt, no ID provided
         }
         // Create User
         let newUserId;
@@ -94,6 +103,7 @@ app.post('/register', async (req, res) => {
         }
         if (newUserId) {
             res.sendStatus(204); // User created successfully
+            await updateCompanyOwner(newCompanyId, newUserId);
             return;
         } else {
             res.sendStatus(409); // no SQL error, but no user ID provided back
@@ -104,7 +114,7 @@ app.post('/register', async (req, res) => {
     }
 });
 
-app.get('/login', async (req, res) => {
+app.post('/login', async (req, res) => {
 
     const username = req.body.username;
     const password = req.body.password;
@@ -130,7 +140,7 @@ app.get('/login', async (req, res) => {
         return;
     }
     if (isCorrect) {
-        const token = generateAccessToken(username, user.id, user.company_id, user.isAdmin);
+        const token = generateAccessToken(username, userIdHashId.encode(user.id), user.company_id, user.isAdmin);
         res.status(200).json({ token: token }); // correct password
     } else {
         res.sendStatus(401); // incorrect password
@@ -138,33 +148,19 @@ app.get('/login', async (req, res) => {
 
 });
 
-// app.get('/user', async (req, res) => {
+app.get('/user', async (req, res) => {
 
-//     let username;
-//     try {
-//         username = verifyToken(req.body.token);
-//     } catch (err) {
-//         res.sendStatus(401); // could not verify token
-//         return;
-//     }
+    let user;
+    try {
+        user = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
+        return;
+    }
+    console.log(user);
+    res.status(200).json(user);
 
-//     let user;
-//     try {
-//         user = await getUser(username);
-//     } catch (err) {
-//         res.sendStatus(500); // SQL error getting user
-//         return;
-//     }
-//     if (!user) {
-//         res.sendStatus(404); // user not found
-//         return;
-//     }
-//     res.status(200).json({
-//         username: user.username,
-//         company_id: user.company_id,
-//         isAdmin: user.isAdmin
-//     }).send();
-// });
+});
 
 app.put('/password', async (req, res) => {
 
@@ -210,15 +206,15 @@ app.put('/password', async (req, res) => {
         return;
     }
     try {
-        let data = await setPassword(user.id, newHashedPassword);
+        let data = await setPassword(dbUser.id, newHashedPassword);
         console.log(data);
         res.sendStatus(204); // updated password
         return;
-    } catch(err) {
+    } catch (err) {
         res.sendStatus(409); // Unable to update password
         return;
     }
-    
+
 });
 
 app.delete('/user', async (req, res) => {
@@ -232,9 +228,9 @@ app.delete('/user', async (req, res) => {
     }
 
     let result;
-    try { 
-        result = await deleteUser(username, );
-    } catch(err) {
+    try {
+        result = await deleteUser(username);
+    } catch (err) {
         res.sendStatus(500); // Error deleting user
         return;
     }

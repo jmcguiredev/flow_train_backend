@@ -43,6 +43,7 @@ module.exports.getUser = async function (username) {
 
     try {
         const [user] = await pool.query(search_query);
+        console.log(user);
         return user;
     } catch (err) {
         console.log('[getUser] : ', user);
@@ -80,10 +81,10 @@ module.exports.getCompany = async function (company_id) {
     }
 }
 
-module.exports.createCompany = async function (companyName) {
+module.exports.createCompany = async function (companyName, ownerId) {
 
-    const sqlInsert = `INSERT INTO ${DB_COMPANIES_TABLE} VALUES (NULL,?)`;
-    const insert_query = mysql.format(sqlInsert, [companyName]);
+    const sqlInsert = `INSERT INTO ${DB_COMPANIES_TABLE} VALUES (NULL,?,?)`;
+    const insert_query = mysql.format(sqlInsert, [companyName, ownerId]);
 
     try {
         const result = await pool.query(insert_query);
@@ -93,6 +94,19 @@ module.exports.createCompany = async function (companyName) {
         throw err;
     }
     
+}
+
+module.exports.updateCompanyOwner = async function (companyId, userId) {
+
+    const sqlInsert = `UPDATE ${DB_COMPANIES_TABLE} SET owner_id = ? WHERE id = ?`;
+    const insert_query = mysql.format(sqlInsert, [userId, companyId]);
+
+    try {
+        await pool.query(insert_query);
+    } catch(err) {
+        console.log('[updateCompanyOwner] : ', err);
+        return;
+    }
 }
 
 module.exports.setPassword = async function (id, newPassword) {
