@@ -12,8 +12,10 @@
     "bcrypt": "^5.0.1",
     "express": "^4.17.2",
     "hashids": "^2.2.10",
+    "jsonschema": "^1.4.0",
     "jsonwebtoken": "^8.5.1",
-    "mysql": "^2.18.1"
+    "mysql": "^2.18.1",
+    "mysql2": "^2.3.3"
   },
   "devDependencies": {
     "dotenv": "^10.0.0",

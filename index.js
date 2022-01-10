@@ -3,29 +3,51 @@ const app = express();
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, getCompany, createCompany, setPassword, deleteUser, updateCompanyOwner } = require("./util/db");
+const { createUser, getUser, getCompany, createCompany, setPassword,
+    deleteUser, updateCompanyOwner, createGroup, updateGroupName, createOrg } = require("./util/db");
+const validator = require('./util/validate');
 app.use(express.json());
 const Hashids = require('hashids/cjs');
 
 
 const USERID_SALT = process.env.USERID_SALT;
 const COMPANYID_SALT = process.env.COMPANYID_SALT;
+const GENERAL_SALT = process.env.GENERAL_SALT;
 const port = process.env.PORT;
 
+
+const generalHashId = new Hashids(GENERAL_SALT, 10);
 const userIdHashId = new Hashids(USERID_SALT, 8);
-const companyIdHashId = new Hashids(USERID_SALT, 4);
+const companyIdHashId = new Hashids(COMPANYID_SALT, 6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890');
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
 
 
 
+app.post('/register-org', async (req, res) => {
+
+    const { email, password, firstName, lastName, companyName } = req.body;
+    const valid = validator.validateRegisterOrg(req.body);
+    if(!valid) {
+        res.sendStatus(400);
+        return;
+    }
+    const result = await createOrg(req.body);
+    if(result) {
+        res.sendStatus(204);
+        return;
+    } 
+    res.sendStatus(500);
+    return;
+});
 
 app.post('/register', async (req, res) => {
 
-    const username = req.body.username;
+    const email = req.body.email;
     const password = req.body.password;
-    const isAdmin = req.body.isAdmin;
+    const firstName = req.body.firstName;
+    const lastName = req.body.lastName;
     const companyName = req.body.companyName;
     let company_id = req.body.company_id;
 
@@ -85,7 +107,6 @@ app.post('/register', async (req, res) => {
         let newCompanyId;
         try {
             newCompanyId = await createCompany(companyName, null); // create company
-            console.log('new id', newCompanyId);
         } catch (err) {
             res.sendStatus(500); // SQL error creating company
             return;
@@ -140,7 +161,9 @@ app.post('/login', async (req, res) => {
         return;
     }
     if (isCorrect) {
-        const token = generateAccessToken(username, userIdHashId.encode(user.id), user.company_id, user.isAdmin);
+        const token = generateAccessToken(username, userIdHashId.encode(user.id), 
+        companyIdHashId.encode(user.company_id), user.isAdmin);
+
         res.status(200).json({ token: token }); // correct password
     } else {
         res.sendStatus(401); // incorrect password
@@ -187,7 +210,6 @@ app.put('/password', async (req, res) => {
     let isEqual;
     try {
         isEqual = await bcrypt.compare(req.body.password, dbUser.password);
-        console.log('isEqual : ', isEqual);
     } catch (err) {
         res.sendStatus(500); // error comparing hash
         return;
@@ -202,6 +224,7 @@ app.put('/password', async (req, res) => {
     try {
         newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
     } catch (err) {
+        console.log('Hash Password Error : ', err);
         res.sendStatus(500); // error hashing password
         return;
     }
@@ -219,23 +242,19 @@ app.put('/password', async (req, res) => {
 
 app.delete('/user', async (req, res) => {
 
-    let username;
+    let user;
     try {
-        username = verifyToken(req.body.token);
+        user = verifyToken(req.body.token);
     } catch (err) {
         res.sendStatus(401); // could not verify token
         return;
     }
 
-    let result;
+    let result = { affectedRows: 0 };
     try {
-        result = await deleteUser(username);
+        result = await deleteUser(userIdHashId.decode(user.id));
     } catch (err) {
         res.sendStatus(500); // Error deleting user
-        return;
-    }
-    if (!result) {
-        res.sendStatus(400); // Could not find user
         return;
     }
 
@@ -246,16 +265,55 @@ app.delete('/user', async (req, res) => {
     }
 });
 
-app.post('/group', (req, res) => {
+app.post('/group', async (req, res) => {
 
-    let username;
+    let user;
     try {
-        username = verifyToken(req.body.token);
+        user = verifyToken(req.body.token);
     } catch (err) {
         res.sendStatus(401); // could not verify token
         return;
     }
 
-
+    let result = { affectedRows: 0 };
+    try {
+        result = await createGroup(req.body.groupName, companyIdHashId.decode(user.company_id));
+    } catch (err) {
+        res.sendStatus(500); // Error creating group
+        return;
+    }
+    if(result.affectedRows > 0) {
+        res.sendStatus(204); // Created group
+    } else {
+        res.sendStatus(400); // Unable to create group
+    }
+    return;
 });
+
+app.put('/group-name', async (req, res) => {
+
+    let user;
+    try {
+        user = verifyToken(req.body.token);
+    } catch (err) {
+        res.sendStatus(401); // could not verify token
+        return;
+    }
+
+    let result = { affectedRows: 0 };
+    try {
+        result = await updateGroupName(generalHashId.decode(req.body.groupId));
+    } catch(err) {
+        res.sendStatus(500); // could not update group
+        return;
+    }
+    if(result.affectedRows > 0) {
+        res.sendStatus(204); // Updated group
+        return;
+    } else {
+        res.sendStatus(400); // group not updated, no err
+        return;
+    }
+});
+
 
