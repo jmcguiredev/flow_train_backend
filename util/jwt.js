@@ -1,19 +1,28 @@
 const jwt = require("jsonwebtoken");
+const { logErrors } = require('./logger');
+const { encodeId, decodeId } = require('./hashid');
 
 TOKEN_EXPIRE_TIME = process.env.TOKEN_EXPIRE_TIME;
+ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 
-module.exports.generateAccessToken = function (username, id, company_id, isAdmin) {
-    return jwt.sign({ username, id, company_id, isAdmin }, process.env.ACCESS_TOKEN_SECRET, {expiresIn: TOKEN_EXPIRE_TIME});
+module.exports.generateAccessToken = function (user) {
+    // Preparing user object for tokenization
+    let userObj = {...user};
+    delete userObj.password;
+    userObj.id = encodeId(userObj.id);
+    userObj.company_id = encodeId(userObj.company_id);
+
+    return jwt.sign(userObj, ACCESS_TOKEN_SECRET, {expiresIn: TOKEN_EXPIRE_TIME});
 }
 
 module.exports.verifyToken = function (token) {
     try {
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
         if (decoded.exp * 1000 >= Date.now()) {
             return decoded;
         } 
     } catch (err) {
-        console.log('[verifyToken] : ', err);
-        throw err;
+        logErrors('jwt.verifyToken', [err]);
+        return false;
     }
 }

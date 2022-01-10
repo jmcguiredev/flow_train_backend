@@ -4,21 +4,12 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { createUser, getUser, getCompany, createCompany, setPassword,
-    deleteUser, updateCompanyOwner, createGroup, updateGroupName, createOrg } = require("./util/db");
+    deleteUser, updateCompanyOwner, createGroup, updateGroupName, createOrg, checkPassword } = require("./util/db");
 const validator = require('./util/validate');
 app.use(express.json());
-const Hashids = require('hashids/cjs');
+const { encodeId, decodeId } = require('./util/hashid');
 
-
-const USERID_SALT = process.env.USERID_SALT;
-const COMPANYID_SALT = process.env.COMPANYID_SALT;
-const GENERAL_SALT = process.env.GENERAL_SALT;
 const port = process.env.PORT;
-
-
-const generalHashId = new Hashids(GENERAL_SALT, 10);
-const userIdHashId = new Hashids(USERID_SALT, 8);
-const companyIdHashId = new Hashids(COMPANYID_SALT, 6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890');
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
@@ -27,214 +18,77 @@ app.listen(port,
 
 app.post('/register-org', async (req, res) => {
 
-    const { email, password, firstName, lastName, companyName } = req.body;
     const valid = validator.validateRegisterOrg(req.body);
-    if(!valid) {
+    if (!valid) {
         res.sendStatus(400);
         return;
     }
     const result = await createOrg(req.body);
-    if(result) {
+    if (result) {
         res.sendStatus(204);
         return;
-    } 
-    res.sendStatus(500);
-    return;
-});
-
-app.post('/register', async (req, res) => {
-
-    const email = req.body.email;
-    const password = req.body.password;
-    const firstName = req.body.firstName;
-    const lastName = req.body.lastName;
-    const companyName = req.body.companyName;
-    let company_id = req.body.company_id;
-
-    let hashedPassword;
-    try {
-        hashedPassword = await bcrypt.hash(password, 10);
-    } catch (err) {
-        res.status(400).sendStatus(500); // error hashing password
-        return;
-    }
-
-    let user;
-    try {
-        user = await getUser(username);
-    } catch (err) {
-        res.sendStatus(500); // User SQL query error
-        return;
-    }
-    if (user) {
-        res.sendStatus(409); // Username already taken
-        return;
-    }
-
-    if (!isAdmin) {
-        // Creating 'Agent' user account
-        // Check if company exists
-        let company;
-        try {
-            company = await getCompany(companyIdHashId.decode(company_id));
-        } catch (err) {
-            res.sendStatus(400); // User is not admin, but provided company ID does not exist
-            return;
-        }
-        if (!company) {
-            res.sendStatus(400); // no SQL err, but company ID not found
-            return;
-        }
-
-        // Create User
-        let newUserId;
-        try {
-            newUserId = await createUser(username, hashedPassword, company_id, isAdmin);
-        } catch (err) {
-            res.sendStatus(400); // createUser SQL error
-            return;
-        }
-        if (newUserId) {
-            res.sendStatus(204); // User created successfully
-            return;
-        } else {
-            res.sendStatus(409); // no SQL error, but no user ID provided back
-            return;
-        }
-
-    } else if (isAdmin) {
-        // Creating 'Admin' user account
-        let newCompanyId;
-        try {
-            newCompanyId = await createCompany(companyName, null); // create company
-        } catch (err) {
-            res.sendStatus(500); // SQL error creating company
-            return;
-        }
-        if (!newCompanyId) {
-            res.sendStatus(409); // confilt, no ID provided
-        }
-        // Create User
-        let newUserId;
-        try {
-            newUserId = await createUser(username, hashedPassword, newCompanyId, isAdmin);
-        } catch (err) {
-            res.sendStatus(400); // createUser SQL error
-            return;
-        }
-        if (newUserId) {
-            res.sendStatus(204); // User created successfully
-            await updateCompanyOwner(newCompanyId, newUserId);
-            return;
-        } else {
-            res.sendStatus(409); // no SQL error, but no user ID provided back
-            return;
-        }
     } else {
-        res.sendStatus(400); // Invalid isAdmin field
+        res.sendStatus(500);
+        return;
     }
+
 });
 
 app.post('/login', async (req, res) => {
 
-    const username = req.body.username;
-    const password = req.body.password;
-
-    let user;
-    try {
-        user = await getUser(username);
-    } catch (err) {
-        res.sendStatus(500); // getUser SQL error
-        return;
-    }
+    const { email, password } = req.body;
+    let user = await checkPassword(email, password);
     if (!user) {
-        res.sendStatus(401); // Unauthorized - could not find user
-        return;
-    }
-
-    const hashedPassword = user.password;
-    let isCorrect;
-    try {
-        isCorrect = await bcrypt.compare(password, hashedPassword);
-    } catch (err) {
-        res.sendStatus(500); // Error comparing hash
-        return;
-    }
-    if (isCorrect) {
-        const token = generateAccessToken(username, userIdHashId.encode(user.id), 
-        companyIdHashId.encode(user.company_id), user.isAdmin);
-
-        res.status(200).json({ token: token }); // correct password
-    } else {
-        res.sendStatus(401); // incorrect password
-    }
-
-});
-
-app.get('/user', async (req, res) => {
-
-    let user;
-    try {
-        user = verifyToken(req.body.token);
-    } catch (err) {
-        res.sendStatus(401); // could not verify token
-        return;
-    }
-    console.log(user);
-    res.status(200).json(user);
-
-});
-
-app.put('/password', async (req, res) => {
-
-    let user;
-    try {
-        user = verifyToken(req.body.token);
-    } catch (err) {
-        res.sendStatus(401); // could not verify token
-        return;
-    }
-
-    let dbUser;
-    try {
-        dbUser = await getUser(user.username);
-    } catch (err) {
-        res.sendStatus(500); // SQL error getting user
-        return;
-    }
-    if (!dbUser) {
-        res.sendStatus(404); // user not found
-        return;
-    }
-
-    let isEqual;
-    try {
-        isEqual = await bcrypt.compare(req.body.password, dbUser.password);
-    } catch (err) {
-        res.sendStatus(500); // error comparing hash
-        return;
-    }
-    if (!isEqual) {
         res.sendStatus(401); // Incorrect password
         return;
     }
 
-
-    let newHashedPassword;
-    try {
-        newHashedPassword = await bcrypt.hash(req.body.newPassword, 10);
-    } catch (err) {
-        console.log('Hash Password Error : ', err);
-        res.sendStatus(500); // error hashing password
+    const token = generateAccessToken(user);
+    if (!token) {
+        res.sendStatus(500); // Error generating token
+    } else {
+        res.status(200).json({ token: token }); // correct password
         return;
     }
+});
+
+// app.get('/user', async (req, res) => {
+
+//     let user;
+//     try {
+//         user = verifyToken(req.body.token);
+//     } catch (err) {
+//         res.sendStatus(401); // could not verify token
+//         return;
+//     }
+//     console.log(user);
+//     res.status(200).json(user);
+// });
+
+app.put('/password', async (req, res) => {
+
+    const { token, password, newPassword } = req.body;
+
+    let user;
     try {
-        let data = await setPassword(dbUser.id, newHashedPassword);
-        console.log(data);
-        res.sendStatus(204); // updated password
-        return;
+        user = verifyToken(token);
     } catch (err) {
-        res.sendStatus(409); // Unable to update password
+        res.sendStatus(401); // could not verify token
+        return;
+    }
+
+    let dbUser = await checkPassword(user.email, password);
+    if(!dbUser) {
+        res.sendStatus(401); // Password incorrect
+        return;
+    }
+    
+    let result = await setPassword(user.id, newPassword);
+    if(!result) {
+        res.sendStatus(500); // Error setting password
+        return;
+    } else {
+        res.sendStatus(204); // Password set
         return;
     }
 
@@ -242,26 +96,29 @@ app.put('/password', async (req, res) => {
 
 app.delete('/user', async (req, res) => {
 
+    const { token, password } = req.body;
+
     let user;
     try {
-        user = verifyToken(req.body.token);
+        user = verifyToken(token);
     } catch (err) {
         res.sendStatus(401); // could not verify token
         return;
     }
 
-    let result = { affectedRows: 0 };
-    try {
-        result = await deleteUser(userIdHashId.decode(user.id));
-    } catch (err) {
-        res.sendStatus(500); // Error deleting user
+    let dbUser = await checkPassword(user.email, password);
+    if(!dbUser) {
+        res.sendStatus(401); // password incorrect
         return;
     }
 
-    if (result.affectedRows > 0) {
-        res.sendStatus(204); // User deleted
+    const result = await deleteUser(user.id);
+    if(!result) {
+        res.sendStatus(500); // error deleting user
+        return;
     } else {
-        res.sendStatus(400); // User not found
+        res.sendStatus(204); // user deleted
+        return;
     }
 });
 
@@ -275,14 +132,14 @@ app.post('/group', async (req, res) => {
         return;
     }
 
-    let result = { affectedRows: 0 };
+    let result;
     try {
-        result = await createGroup(req.body.groupName, companyIdHashId.decode(user.company_id));
+        result = await createGroup(req.body.groupName, decodeId(user.company_id));
     } catch (err) {
         res.sendStatus(500); // Error creating group
         return;
     }
-    if(result.affectedRows > 0) {
+    if (result.affectedRows > 0) {
         res.sendStatus(204); // Created group
     } else {
         res.sendStatus(400); // Unable to create group
@@ -302,12 +159,12 @@ app.put('/group-name', async (req, res) => {
 
     let result = { affectedRows: 0 };
     try {
-        result = await updateGroupName(generalHashId.decode(req.body.groupId));
-    } catch(err) {
+        result = await updateGroupName(decodeId(req.body.groupId));
+    } catch (err) {
         res.sendStatus(500); // could not update group
         return;
     }
-    if(result.affectedRows > 0) {
+    if (result.affectedRows > 0) {
         res.sendStatus(204); // Updated group
         return;
     } else {

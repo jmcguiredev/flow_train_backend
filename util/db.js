@@ -2,6 +2,7 @@ const mysql = require("mysql2/promise");
 const util = require('util');
 const bcrypt = require("bcrypt");
 const { logErrors, logMessage } = require('./logger');
+const { encodeId, decodeId } = require('./hashid');
 
 const DB_HOST = process.env.DB_HOST;
 const DB_USER = process.env.DB_USER;
@@ -46,13 +47,11 @@ module.exports.createOrg = async function (fields) {
         let sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?,NULL,?,?)`;
         let insert_query = mysql.format(sqlInsert, [email, hashedPassword, firstName, lastName, role, emailVerified]);
         let result = await connection.query(insert_query);
-        console.log('User insert: ', result);
         const userId = result[0].insertId;
 
         sqlInsert = `INSERT INTO companies VALUES (NULL,?,?)`;
         insert_query = mysql.format(sqlInsert, [companyName, userId]);
         result = await connection.query(insert_query);
-        console.log('Company insert: ', result);
         const companyId = result[0].insertId;
 
         let sqlUpdate = `UPDATE users SET company_id = ? WHERE id = ?`;
@@ -67,9 +66,9 @@ module.exports.createOrg = async function (fields) {
         return false;
     } finally {
         connection.release();
-        logMessage(src, `Successfully created organization.`);
-        return true;
     }
+    logMessage(src, `Successfully created organization.`);
+    return true;
 
 }
 
@@ -88,33 +87,73 @@ module.exports.createUser = async function (email, hashedPassword, firstName, la
 
 }
 
-module.exports.getUser = async function (username) {
+module.exports.checkPassword = async function (email, password) {
+    const src = 'db.checkPassword';
 
-    const sqlSearch = `SELECT * FROM ${DB_USERS_TABLE} WHERE username = ?`;
-    const search_query = mysql.format(sqlSearch, [username]);
-
+    const user = await module.exports.getUser(email);
+    if (!user) return false;
+    let isCorrect;
     try {
-        const [user] = await pool.query(search_query);
-        return user;
+        isCorrect = await bcrypt.compare(password, user.password);
     } catch (err) {
-        console.log('[getUser] : ', user);
-        throw (err);
+        logErrors(src, [err]);
+        return false;
     }
+    if (!isCorrect) return false;
+    return user;
 
 }
 
-module.exports.deleteUser = async function (userId) {
+module.exports.setPassword = async function (encodedId, newPassword) {
+    const src = 'db.setPassword';
 
-    const sqlDelete = `DELETE FROM ${DB_USERS_TABLE} WHERE id = ?`;
-    const delete_query = mysql.format(sqlDelete, [userId]);
+    let newHashedPassword;
+    try {
+        newHashedPassword = await bcrypt.hash(newPassword, HASH_ROUNDS);
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+    const sqlUpdate = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE id = ?`;
+    const update_query = mysql.format(sqlUpdate, [newHashedPassword, decodeId(encodedId)]);
 
     try {
-        const result = await pool.query(delete_query);
-        return result;
+        const data = await pool.query(update_query);
+        return true;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.getUser = async function (email) {
+    const src = 'db.getUser';
+
+    const sqlSearch = `SELECT * FROM users WHERE email = ?`;
+    const search_query = mysql.format(sqlSearch, [email]);
+    try {
+        const result = await pool.query(search_query);
+        const user = result[0][0];
+        return user;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.deleteUser = async function (encodedId) {
+    const src = 'db.deleteUser';
+
+    const sqlDelete = `DELETE FROM users WHERE id = ?`;
+    const delete_query = mysql.format(sqlDelete, [decodeId(encodedId)]);
+    
+    try {
+        await pool.query(delete_query);
+        return true;
     }
     catch (err) {
-        console.log('[deleteUser] : ', err);
-        throw err;
+        logErrors(src, [err]);
+        return false;
     }
 }
 
@@ -160,31 +199,20 @@ module.exports.updateCompanyOwner = async function (companyId, userId) {
     }
 }
 
-module.exports.setPassword = async function (id, newPassword) {
 
-    const sqlUpdate = `UPDATE ${DB_USERS_TABLE} SET password = ? WHERE id = ?`;
-    const update_query = mysql.format(sqlUpdate, [newPassword, id]);
 
-    try {
-        const data = await pool.query(update_query);
-        return data;
-    } catch (err) {
-        console.log('[setPassword] : ', err);
-        throw err;
-    }
-}
-
-module.exports.createGroup = async function (groupName, companyId) {
+module.exports.createGroup = async function (groupName, encodedCompanyId) {
+    const src = 'db.createGroup';
 
     const sqlInsert = "INSERT INTO 'groups' VALUES (NULL,?,?)";
-    const insert_query = mysql.format(sqlInsert, [groupName, companyId]);
+    const insert_query = mysql.format(sqlInsert, [groupName, decodeId(encodedCompanyId)]);
 
     try {
         const result = await pool.query(insert_query);
-        return result.insertId;
+        return true;
     } catch (err) {
-        console.log('[createGroup] : ', err);
-        throw err;
+        logErrors(src, [err]);
+        return false;
     }
 }
 
