@@ -3,13 +3,14 @@ const app = express();
 require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { createUser, getUser, getCompany, createCompany, setPassword,
-    deleteUser, updateCompanyOwner, createGroup, createOrg, checkPassword, getGroups, renameGroup } = require("./util/db");
-const validator = require('./util/validate');
-app.use(express.json());
+const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
+    renameGroup } = require("./util/db");
+const { schemas, validate } = require('./util/schema');
 const { encodeId, decodeId } = require('./util/hashid');
 
 const port = process.env.PORT;
+
+app.use(express.json());
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
@@ -18,17 +19,17 @@ app.listen(port,
 
 app.post('/register-org', async (req, res) => {
 
-    const valid = validator.validateRegisterOrg(req.body);
+    const valid = validate(req.body, schemas.registerOrgSchema);
     if (!valid) {
-        res.sendStatus(400);
+        res.sendStatus(400); // bad request
         return;
     }
     const result = await createOrg(req.body);
-    if (result) {
-        res.sendStatus(204);
+    if (!result) {
+        res.sendStatus(500); // err creating org
         return;
     } else {
-        res.sendStatus(500);
+        res.sendStatus(204); // created org
         return;
     }
 
@@ -131,7 +132,7 @@ app.post('/group', async (req, res) => {
     }
 
     const { groupName } = req.body;
-    const valid = validator.validateCreateGroup({ groupName });
+    const valid = validate({ groupName }, schemas.createGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
@@ -158,7 +159,7 @@ app.get('/groups', async (req, res) => {
 
     const { company_id } = user;
     const groups = await getGroups(company_id);
-    if(!groups) {
+    if (!groups) {
         res.sendStatus(500); // err getting groups
         return;
     } else {
@@ -176,8 +177,8 @@ app.put('/group-name', async (req, res) => {
     }
 
     const { groupName, groupId } = req.body;
-    const valid = validator.validateRenameGroup({ groupName, groupId });
-    if(!valid) {
+    const valid = validate({ groupName, groupId }, schemas.renameGroupSchema);
+    if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }

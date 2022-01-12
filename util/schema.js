@@ -1,5 +1,6 @@
 let Validator = require('jsonschema').Validator;
 let v = new Validator();
+const { logErrors } = require('./logger');
 
 // Reference Schemas
 const emailSchema = {
@@ -44,8 +45,8 @@ const encodedIdSchema = {
     "type": "string"
 }
 
-const groupNameSchema = {
-    "id": "/GroupName",
+const basicNameSchema = {
+    "id": "/BasicName",
     "type": "string",
     "minLength": 1,
     "maxLength": 45
@@ -57,40 +58,52 @@ v.addSchema(firstNameSchema, firstNameSchema.id);
 v.addSchema(lastNameSchema, lastNameSchema.id);
 v.addSchema(companyNameSchema, companyNameSchema.id);
 v.addSchema(encodedIdSchema, encodedIdSchema.id);
-v.addSchema(groupNameSchema, groupNameSchema.id);
+v.addSchema(basicNameSchema, basicNameSchema.id);
 
-module.exports.validator = v;
+module.exports.validate = function (fields, schema) {
+    const result = v.validate(fields, schema);
+    logErrors(`validate.validate [${schema.id}]`, result.errors);
+    return result.valid;
+}
 
 // Validation Schemas
-module.exports.registerOrgSchema = {
-    "type": "object",
-    "properties": {
-        "email": { "$ref": "/Email" },
-        "password": { "$ref": "/Password" },
-        "firstName": { "$ref": "/FirstName" },
-        "lastName": { "$ref": "/LastName" },
-        "companyName": { "$ref": "/CompanyName"}
+module.exports.schemas = {
+    registerOrgSchema: {
+        "id": "registerOrg",
+        "type": "object",
+        "properties": {
+            "email": { "$ref": "/Email" },
+            "password": { "$ref": "/Password" },
+            "firstName": { "$ref": "/FirstName" },
+            "lastName": { "$ref": "/LastName" },
+            "companyName": { "$ref": "/CompanyName"}
+        },
+        "required": ["email", "password", "firstName", "lastName"]
     },
-    "required": ["email", "password", "firstName", "lastName"]
-}
-
-module.exports.createGroupSchema = {
-    "type": "object",
-    "properties": {
-        "groupName": { "$ref": "/GroupName" }
+    createGroupSchema: {
+        "id": "createGroup",
+        "type": "object",
+        "properties": {
+            "groupName": { "$ref": "/BasicName" }
+        },
+        "required": ["groupName"]
     },
-    "required": ["groupName"]
-}
-
-module.exports.renameGroupSchema = {
-    "type": "object",
-    "properties": {
-        "groupName": { "$ref": "/GroupName" },
-        "groupId": { "$ref": "/EncodedId" }
+    renameGroupSchema: {
+        "id": "renameGroup",
+        "type": "object",
+        "properties": {
+            "groupName": { "$ref": "/BasicName" },
+            "groupId": { "$ref": "/EncodedId" }
+        },
+        "required": ["groupName", "groupId"]
     },
-    "required": ["groupName", "groupId"]
+    createServiceSchema: {
+        "id": "createService",
+        "type": "object",
+        "properties": {
+            "serviceName": { "$ref": "/BasicName" },
+            "groupId": { "$ref": "/EncodedId" }
+        },
+        "required": ["serviceName", ]
+    }
 }
-
-
-
-
