@@ -55,7 +55,7 @@ module.exports.createOrg = async function (fields) {
         result = await connection.query(insert_query);
         const companyId = result[0].insertId;
 
-        let sqlUpdate = `UPDATE users SET company_id = ? WHERE id = ?`;
+        let sqlUpdate = `UPDATE users SET companyId = ? WHERE id = ?`;
         let update_query = mysql.format(sqlUpdate, [companyId, userId]);
         await connection.query(update_query);
 
@@ -76,7 +76,7 @@ module.exports.createOrg = async function (fields) {
 module.exports.createUser = async function (email, hashedPassword, firstName, lastName, companyName) {
 
     const sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?)`;
-    const insert_query = mysql.format(sqlInsert, [username, hashedPassword, company_id, isAdmin]);
+    const insert_query = mysql.format(sqlInsert, [username, hashedPassword, companyId, isAdmin]);
 
     try {
         const result = await pool.query(insert_query);
@@ -158,10 +158,10 @@ module.exports.deleteUser = async function (encodedId) {
     }
 }
 
-// module.exports.getCompany = async function (company_id) {
+// module.exports.getCompany = async function (companyId) {
 
 //     const sqlSearch = `SELECT * FROM ${DB_COMPANIES_TABLE} WHERE id = ?`;
-//     const search_query = mysql.format(sqlSearch, [company_id]);
+//     const search_query = mysql.format(sqlSearch, [companyId]);
 
 //     try {
 //         const [company] = await pool.query(search_query);
@@ -208,7 +208,7 @@ module.exports.createGroup = async function (groupName, encodedCompanyId) {
 module.exports.getGroups = async function (encodedCompanyId) {
     const src = 'db.getGroups'; 
 
-    const sqlSelect = "SELECT * FROM `groups` WHERE company_id = ?";
+    const sqlSelect = "SELECT * FROM `groups` WHERE companyId = ?";
     const select_query = mysql.format(sqlSelect, [decodeId(encodedCompanyId)]);
 
     try {
@@ -216,7 +216,7 @@ module.exports.getGroups = async function (encodedCompanyId) {
         groups = groups[0];
         groups.forEach(group => {
             group.id = encodeId(group.id);
-            delete group.company_id;
+            delete group.companyId;
             return group;
         });
         return groups;
@@ -229,7 +229,7 @@ module.exports.getGroups = async function (encodedCompanyId) {
 module.exports.renameGroup = async function (groupName, encodedGroupId, encodedCompanyId) {
     const src = 'db.updateGroupName';
 
-    const sqlUpdate = "UPDATE `groups` SET name = ? WHERE id = ? AND company_id = ?";
+    const sqlUpdate = "UPDATE `groups` SET name = ? WHERE id = ? AND companyId = ?";
     const update_query = mysql.format(sqlUpdate, [groupName, decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
 
     try {

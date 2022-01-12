@@ -10,7 +10,7 @@ module.exports.generateAccessToken = function (user) {
     let userObj = {...user};
     delete userObj.password;
     userObj.id = encodeId(userObj.id);
-    userObj.company_id = encodeId(userObj.company_id);
+    userObj.companyId = encodeId(userObj.companyId);
 
     return jwt.sign(userObj, ACCESS_TOKEN_SECRET, {expiresIn: TOKEN_EXPIRE_TIME});
 }

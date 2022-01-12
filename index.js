@@ -138,8 +138,8 @@ app.post('/group', async (req, res) => {
         res.sendStatus(400); // bad request
         return;
     }
-    const { company_id } = user;
-    let groupId = await createGroup(groupName, company_id);
+    const { companyId } = user;
+    let groupId = await createGroup(groupName, companyId);
     if (!groupId) {
         res.sendStatus(500); // err creating group
         return;
@@ -158,8 +158,8 @@ app.get('/groups', async (req, res) => {
         return;
     }
 
-    const { company_id } = user;
-    const groups = await getGroups(company_id);
+    const { companyId } = user;
+    const groups = await getGroups(companyId);
     if (!groups) {
         res.sendStatus(500); // err getting groups
         return;
@@ -184,11 +184,11 @@ app.put('/group-name', async (req, res) => {
         return;
     }
 
-    const { company_id } = user;
-    const result = await renameGroup(groupName, groupId, company_id);
+    const { companyId } = user;
+    const result = await renameGroup(groupName, groupId, companyId);
 
     if (!result) {
-        res.sendStatus(500); // unable to update group, possibly due to company_id mismatch
+        res.sendStatus(500); // unable to update group, possibly due to companyId mismatch
         return;
     } else {
         res.json({ groupName, groupId }); // group updated
@@ -205,14 +205,14 @@ app.post('/service', async (req, res) => {
     }
 
     const { serviceName, groupId } = req.body;
-    const { company_id } = user;
-    let valid = validate({ serviceName, groupId, company_id }, schemas.createServiceSchema);
+    const { companyId } = user;
+    let valid = validate({ serviceName, groupId, companyId }, schemas.createServiceSchema);
     if(!valid) {
         res.sendStatus(400); // bad request
         return;
     } 
 
-    const serviceId = await createService(serviceName, groupId, company_id);
+    const serviceId = await createService(serviceName, groupId, companyId);
     if(!serviceId) {
         res.sendStatus(500); // err creating service
         return;
