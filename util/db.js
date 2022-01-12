@@ -3,6 +3,7 @@ const util = require('util');
 const bcrypt = require("bcrypt");
 const { logErrors, logMessage } = require('./logger');
 const { encodeId, decodeId } = require('./hashid');
+const { decode } = require("punycode");
 
 const DB_HOST = process.env.DB_HOST;
 const DB_USER = process.env.DB_USER;
@@ -44,8 +45,8 @@ module.exports.createOrg = async function (fields) {
     await connection.beginTransaction();
 
     try {
-        let sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?,NULL,?,?)`;
-        let insert_query = mysql.format(sqlInsert, [email, hashedPassword, firstName, lastName, role, emailVerified]);
+        let sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?,NULL,?,?,?)`;
+        let insert_query = mysql.format(sqlInsert, [email, hashedPassword, firstName, lastName, role, emailVerified, companyName]);
         let result = await connection.query(insert_query);
         const userId = result[0].insertId;
 
@@ -157,54 +158,42 @@ module.exports.deleteUser = async function (encodedId) {
     }
 }
 
-module.exports.getCompany = async function (company_id) {
+// module.exports.getCompany = async function (company_id) {
 
-    const sqlSearch = `SELECT * FROM ${DB_COMPANIES_TABLE} WHERE id = ?`;
-    const search_query = mysql.format(sqlSearch, [company_id]);
+//     const sqlSearch = `SELECT * FROM ${DB_COMPANIES_TABLE} WHERE id = ?`;
+//     const search_query = mysql.format(sqlSearch, [company_id]);
 
-    try {
-        const [company] = await pool.query(search_query);
-        return company;
-    } catch (err) {
-        console.log('[getCompany] : ', err);
-        return err;
-    }
-}
+//     try {
+//         const [company] = await pool.query(search_query);
+//         return company;
+//     } catch (err) {
+//         console.log('[getCompany] : ', err);
+//         return err;
+//     }
+// }
 
-module.exports.createCompany = async function (companyName, ownerId) {
 
-    const sqlInsert = `INSERT INTO companies VALUES (NULL,?,?)`;
-    const insert_query = mysql.format(sqlInsert, [companyName, ownerId]);
+// TODO: Make company transferrable
 
-    try {
-        const result = await pool.query(insert_query);
-        return result.insertId;
-    } catch (err) {
-        console.log('[createCompany] : ', err);
-        throw err;
-    }
+// module.exports.updateCompanyOwner = async function (companyId, userId) {
 
-}
+//     const sqlUpdate = `UPDATE ${DB_COMPANIES_TABLE} SET owner_id = ? WHERE id = ?`;
+//     const update_query = mysql.format(sqlUpdate, [userId, companyId]);
 
-module.exports.updateCompanyOwner = async function (companyId, userId) {
-
-    const sqlUpdate = `UPDATE ${DB_COMPANIES_TABLE} SET owner_id = ? WHERE id = ?`;
-    const update_query = mysql.format(sqlUpdate, [userId, companyId]);
-
-    try {
-        await pool.query(update_query);
-    } catch (err) {
-        console.log('[updateCompanyOwner] : ', err);
-        return;
-    }
-}
+//     try {
+//         await pool.query(update_query);
+//     } catch (err) {
+//         console.log('[updateCompanyOwner] : ', err);
+//         return;
+//     }
+// }
 
 
 
 module.exports.createGroup = async function (groupName, encodedCompanyId) {
     const src = 'db.createGroup';
 
-    const sqlInsert = "INSERT INTO 'groups' VALUES (NULL,?,?)";
+    const sqlInsert = "INSERT INTO `groups` VALUES (NULL,?,?)";
     const insert_query = mysql.format(sqlInsert, [groupName, decodeId(encodedCompanyId)]);
 
     try {
@@ -216,16 +205,38 @@ module.exports.createGroup = async function (groupName, encodedCompanyId) {
     }
 }
 
-module.exports.updateGroupName = async function (groupId, groupName) {
+module.exports.getGroups = async function (encodedCompanyId) {
+    const src = 'db.getGroups'; 
 
-    const sqlUpdate = `UPDATE groups SET name = ? WHERE id = ?`;
-    const update_query = mysql.format(sqlUpdate, [groupName, groupId]);
+    const sqlSelect = "SELECT * FROM `groups` WHERE company_id = ?";
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedCompanyId)]);
+
+    try {
+        let groups = await pool.query(select_query);
+        groups = groups[0];
+        groups.forEach(group => {
+            group.id = encodeId(group.id);
+            delete group.company_id;
+            return group;
+        });
+        return groups;
+    } catch(err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.renameGroup = async function (groupName, encodedGroupId, encodedCompanyId) {
+    const src = 'db.updateGroupName';
+
+    const sqlUpdate = "UPDATE `groups` SET name = ? WHERE id = ? AND company_id = ?";
+    const update_query = mysql.format(sqlUpdate, [groupName, decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
 
     try {
         const data = await pool.query(update_query);
-        return data;
+        return true;
     } catch (err) {
-        console.log('[updateGroupName] : ', err);
-        throw err;
+        logErrors(src, [err]);
+        return false;
     }
 }

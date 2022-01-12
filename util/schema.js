@@ -39,11 +39,25 @@ const companyNameSchema = {
     "maxLength": 45
 }
 
+const encodedIdSchema = {
+    "id": "/EncodedId",
+    "type": "string"
+}
+
+const groupNameSchema = {
+    "id": "/GroupName",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 45
+}
+
 v.addSchema(emailSchema, emailSchema.id);
 v.addSchema(passwordSchema, passwordSchema.id);
 v.addSchema(firstNameSchema, firstNameSchema.id);
 v.addSchema(lastNameSchema, lastNameSchema.id);
 v.addSchema(companyNameSchema, companyNameSchema.id);
+v.addSchema(encodedIdSchema, encodedIdSchema.id);
+v.addSchema(groupNameSchema, groupNameSchema.id);
 
 module.exports.validator = v;
 
@@ -59,5 +73,24 @@ module.exports.registerOrgSchema = {
     },
     "required": ["email", "password", "firstName", "lastName"]
 }
+
+module.exports.createGroupSchema = {
+    "type": "object",
+    "properties": {
+        "groupName": { "$ref": "/GroupName" }
+    },
+    "required": ["groupName"]
+}
+
+module.exports.renameGroupSchema = {
+    "type": "object",
+    "properties": {
+        "groupName": { "$ref": "/GroupName" },
+        "groupId": { "$ref": "/EncodedId" }
+    },
+    "required": ["groupName", "groupId"]
+}
+
+
 
 

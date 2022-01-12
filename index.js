@@ -4,7 +4,7 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { createUser, getUser, getCompany, createCompany, setPassword,
-    deleteUser, updateCompanyOwner, createGroup, updateGroupName, createOrg, checkPassword } = require("./util/db");
+    deleteUser, updateCompanyOwner, createGroup, createOrg, checkPassword, getGroups, renameGroup } = require("./util/db");
 const validator = require('./util/validate');
 app.use(express.json());
 const { encodeId, decodeId } = require('./util/hashid');
@@ -78,13 +78,13 @@ app.put('/password', async (req, res) => {
     }
 
     let dbUser = await checkPassword(user.email, password);
-    if(!dbUser) {
+    if (!dbUser) {
         res.sendStatus(401); // Password incorrect
         return;
     }
-    
+
     let result = await setPassword(user.id, newPassword);
-    if(!result) {
+    if (!result) {
         res.sendStatus(500); // Error setting password
         return;
     } else {
@@ -107,13 +107,13 @@ app.delete('/user', async (req, res) => {
     }
 
     let dbUser = await checkPassword(user.email, password);
-    if(!dbUser) {
+    if (!dbUser) {
         res.sendStatus(401); // password incorrect
         return;
     }
 
     const result = await deleteUser(user.id);
-    if(!result) {
+    if (!result) {
         res.sendStatus(500); // error deleting user
         return;
     } else {
@@ -124,51 +124,72 @@ app.delete('/user', async (req, res) => {
 
 app.post('/group', async (req, res) => {
 
-    let user;
-    try {
-        user = verifyToken(req.body.token);
-    } catch (err) {
-        res.sendStatus(401); // could not verify token
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
         return;
     }
 
-    let result;
-    try {
-        result = await createGroup(req.body.groupName, decodeId(user.company_id));
-    } catch (err) {
-        res.sendStatus(500); // Error creating group
+    const { groupName } = req.body;
+    const valid = validator.validateCreateGroup({ groupName });
+    if (!valid) {
+        res.sendStatus(400); // bad request
         return;
     }
-    if (result.affectedRows > 0) {
-        res.sendStatus(204); // Created group
+    const { company_id } = user;
+    let result = await createGroup(groupName, company_id);
+    if (!result) {
+        res.sendStatus(500); // err creating group
+        return;
     } else {
-        res.sendStatus(400); // Unable to create group
+        res.sendStatus(204); // created group
+        return;
     }
-    return;
+
+});
+
+app.get('/groups', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { company_id } = user;
+    const groups = await getGroups(company_id);
+    if(!groups) {
+        res.sendStatus(500); // err getting groups
+        return;
+    } else {
+        res.json({ groups });
+        return;
+    }
 });
 
 app.put('/group-name', async (req, res) => {
 
-    let user;
-    try {
-        user = verifyToken(req.body.token);
-    } catch (err) {
-        res.sendStatus(401); // could not verify token
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
         return;
     }
 
-    let result = { affectedRows: 0 };
-    try {
-        result = await updateGroupName(decodeId(req.body.groupId));
-    } catch (err) {
-        res.sendStatus(500); // could not update group
+    const { groupName, groupId } = req.body;
+    const valid = validator.validateRenameGroup({ groupName, groupId });
+    if(!valid) {
+        res.sendStatus(400); // bad request
         return;
     }
-    if (result.affectedRows > 0) {
-        res.sendStatus(204); // Updated group
+
+    const { company_id } = user;
+    const result = await renameGroup(groupName, groupId, company_id);
+
+    if (!result) {
+        res.sendStatus(500); // unable to update group, possibly due to company_id mismatch
         return;
     } else {
-        res.sendStatus(400); // group not updated, no err
+        res.sendStatus(204); // group updated
         return;
     }
 });

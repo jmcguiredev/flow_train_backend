@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { logErrors } = require('./logger');
-const { encodeId, decodeId } = require('./hashid');
+const { encodeId } = require('./hashid');
 
 TOKEN_EXPIRE_TIME = process.env.TOKEN_EXPIRE_TIME;
 ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
