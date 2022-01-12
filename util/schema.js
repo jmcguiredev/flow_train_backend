@@ -9,7 +9,6 @@ const emailSchema = {
     "minLength": 5,
     "maxLength": 100,
     "pattern": /^\S+@\S+\.\S+$/
-
 }
 
 const passwordSchema = {
@@ -104,6 +103,6 @@ module.exports.schemas = {
             "serviceName": { "$ref": "/BasicName" },
             "groupId": { "$ref": "/EncodedId" }
         },
-        "required": ["serviceName", ]
+        "required": ["serviceName", "groupId"]
     }
 }

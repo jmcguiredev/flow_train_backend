@@ -4,7 +4,8 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
-    renameGroup } = require("./util/db");
+    renameGroup, 
+    createService} = require("./util/db");
 const { schemas, validate } = require('./util/schema');
 const { encodeId, decodeId } = require('./util/hashid');
 
@@ -138,12 +139,12 @@ app.post('/group', async (req, res) => {
         return;
     }
     const { company_id } = user;
-    let result = await createGroup(groupName, company_id);
-    if (!result) {
+    let groupId = await createGroup(groupName, company_id);
+    if (!groupId) {
         res.sendStatus(500); // err creating group
         return;
     } else {
-        res.sendStatus(204); // created group
+        res.json({ groupName, groupId }); // created group
         return;
     }
 
@@ -190,8 +191,33 @@ app.put('/group-name', async (req, res) => {
         res.sendStatus(500); // unable to update group, possibly due to company_id mismatch
         return;
     } else {
-        res.sendStatus(204); // group updated
+        res.json({ groupName, groupId }); // group updated
         return;
+    }
+});
+
+app.post('/service', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { serviceName, groupId } = req.body;
+    const { company_id } = user;
+    let valid = validate({ serviceName, groupId, company_id }, schemas.createServiceSchema);
+    if(!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    } 
+
+    const serviceId = await createService(serviceName, groupId, company_id);
+    if(!serviceId) {
+        res.sendStatus(500); // err creating service
+        return;
+    } else {
+        res.json({ serviceName, serviceId });
     }
 });
 

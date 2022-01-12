@@ -198,7 +198,7 @@ module.exports.createGroup = async function (groupName, encodedCompanyId) {
 
     try {
         const result = await pool.query(insert_query);
-        return true;
+        return encodeId(result[0].insertId);
     } catch (err) {
         logErrors(src, [err]);
         return false;
@@ -235,6 +235,21 @@ module.exports.renameGroup = async function (groupName, encodedGroupId, encodedC
     try {
         const data = await pool.query(update_query);
         return true;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.createService = async function (serviceName, encodedGroupId, encodedCompanyId) {
+    const src = 'db.createService';
+
+    const sqlInsert = "INSERT INTO `services` VALUES (NULL,?,?,?)";
+    const insert_query = mysql.format(sqlInsert, [serviceName, decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
+
+    try {
+        const result = await pool.query(insert_query);
+        return encodeId(result[0].insertId);
     } catch (err) {
         logErrors(src, [err]);
         return false;
