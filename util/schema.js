@@ -104,18 +104,20 @@ module.exports.schemas = {
         "id": "createGroup",
         "type": "object",
         "properties": {
-            "groupName": { "$ref": "/BasicName" }
+            "groupName": { "$ref": "/BasicName" },
+            "role": { "$ref": "/SuperAdminRole", "$ref": "/AdminRole"}
         },
-        "required": ["groupName"]
+        "required": ["groupName", "role"]
     },
     renameGroupSchema: {
         "id": "renameGroup",
         "type": "object",
         "properties": {
             "groupName": { "$ref": "/BasicName" },
-            "groupId": { "$ref": "/EncodedId" }
+            "groupId": { "$ref": "/EncodedId" },
+            "role": { "$ref": "/SuperAdminRole", "$ref": "/AdminRole" }
         },
-        "required": ["groupName", "groupId"]
+        "required": ["groupName", "groupId", "role"]
     },
     createServiceSchema: {
         "id": "createService",

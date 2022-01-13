@@ -3,7 +3,6 @@ const util = require('util');
 const bcrypt = require("bcrypt");
 const { logErrors, logMessage } = require('./logger');
 const { encodeId, decodeId } = require('./hashid');
-const { decode, encode } = require("punycode");
 const { verify } = require("crypto");
 
 const DB_HOST = process.env.DB_HOST;
@@ -80,20 +79,20 @@ module.exports.createOrg = async function (fields) {
 
 }
 
-module.exports.createUser = async function (email, hashedPassword, firstName, lastName, companyName) {
+// module.exports.createUser = async function (email, hashedPassword, firstName, lastName, companyName) {
 
-    const sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?)`;
-    const insert_query = mysql.format(sqlInsert, [username, hashedPassword, companyId, isAdmin]);
+//     const sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?)`;
+//     const insert_query = mysql.format(sqlInsert, [username, hashedPassword, companyId, isAdmin]);
 
-    try {
-        const result = await pool.query(insert_query);
-        return result.insertId;
-    } catch (err) {
-        console.log('[createUser] : ', err);
-        throw err;
-    }
+//     try {
+//         const result = await pool.query(insert_query);
+//         return result.insertId;
+//     } catch (err) {
+//         console.log('[createUser] : ', err);
+//         throw err;
+//     }
 
-}
+// }
 
 module.exports.checkPassword = async function (email, password) {
     const src = 'db.checkPassword';

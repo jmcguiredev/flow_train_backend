@@ -134,7 +134,7 @@ app.post('/group', async (req, res) => {
     }
 
     const { groupName } = req.body;
-    const valid = validate({ groupName }, schemas.createGroupSchema);
+    const valid = validate({ groupName, role }, schemas.createGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
@@ -178,8 +178,8 @@ app.put('/group-name', async (req, res) => {
         return;
     }
 
-    const { groupName, groupId } = req.body;
-    const valid = validate({ groupName, groupId }, schemas.renameGroupSchema);
+    const { groupName, groupId, role } = req.body;
+    const valid = validate({ groupName, groupId, role }, schemas.renameGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
@@ -218,6 +218,7 @@ app.post('/service', async (req, res) => {
         return;
     } else {
         res.json({ serviceName, serviceId });
+        return;
     }
 });
 
@@ -237,6 +238,7 @@ app.get('/services', async (req, res) => {
         return;
     } else {
         res.json({ services });
+        return;
     }
 });
 
