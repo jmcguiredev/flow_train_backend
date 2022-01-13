@@ -7,5 +7,5 @@ module.exports.encodeId = function (id) {
     return generalHashId.encode(id);
 }
 module.exports.decodeId = function (id) {
-    return generalHashId.decode(id);
+    return generalHashId.decode(id)[0];
 }

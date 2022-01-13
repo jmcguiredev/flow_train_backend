@@ -26,3 +26,8 @@ module.exports.verifyToken = function (token) {
         return false;
     }
 }
+
+module.exports.authorize = function (token, encodedObjectId, permissionType) {
+    // verify token
+    // 
+}

@@ -5,7 +5,8 @@ const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
     renameGroup, 
-    createService} = require("./util/db");
+    createService,
+    getServices} = require("./util/db");
 const { schemas, validate } = require('./util/schema');
 const { encodeId, decodeId } = require('./util/hashid');
 
@@ -205,19 +206,37 @@ app.post('/service', async (req, res) => {
     }
 
     const { serviceName, groupId } = req.body;
-    const { companyId } = user;
-    let valid = validate({ serviceName, groupId, companyId }, schemas.createServiceSchema);
+    let { companyId, role } = user;
+    let valid = validate({ serviceName, groupId, companyId, role }, schemas.createServiceSchema);
     if(!valid) {
         res.sendStatus(400); // bad request
         return;
     } 
-
     const serviceId = await createService(serviceName, groupId, companyId);
     if(!serviceId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
         res.json({ serviceName, serviceId });
+    }
+});
+
+app.get('/services', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { groupId } = req.body;
+    const { companyId } = user;
+    const services = await getServices(groupId, companyId);
+    if(!services) {
+        res.sendStatus(500); // err getting services
+        return;
+    } else {
+        res.json({ services });
     }
 });
 

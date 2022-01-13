@@ -51,13 +51,34 @@ const basicNameSchema = {
     "maxLength": 45
 }
 
+const superAdminRoleSchema = {
+    "id": "/SuperAdminRole",
+    "type": "string",
+    "pattern": "superadmin"
+}
+
+const adminRoleSchema = {
+    "id": "/AdminRole",
+    "type": "string",
+    "pattern": "admin"
+}
+
+const userRoleSchema = {
+    "id": "/UserRole",
+    "type": "string",
+    "pattern": "user"
+}
+
 v.addSchema(emailSchema, emailSchema.id);
 v.addSchema(passwordSchema, passwordSchema.id);
 v.addSchema(firstNameSchema, firstNameSchema.id);
 v.addSchema(lastNameSchema, lastNameSchema.id);
 v.addSchema(companyNameSchema, companyNameSchema.id);
 v.addSchema(encodedIdSchema, encodedIdSchema.id);
-v.addSchema(basicNameSchema, basicNameSchema.id);
+v.addSchema(basicNameSchema, basicNameSchema.id); 
+v.addSchema(superAdminRoleSchema, superAdminRoleSchema.id);
+v.addSchema(adminRoleSchema, adminRoleSchema.id);
+v.addSchema(userRoleSchema, userRoleSchema.id);
 
 module.exports.validate = function (fields, schema) {
     const result = v.validate(fields, schema);
@@ -101,8 +122,9 @@ module.exports.schemas = {
         "type": "object",
         "properties": {
             "serviceName": { "$ref": "/BasicName" },
-            "groupId": { "$ref": "/EncodedId" }
+            "groupId": { "$ref": "/EncodedId" },
+            "role": { "$ref": "/SuperAdminRole", "$ref": "/AdminRole" }
         },
-        "required": ["serviceName", "groupId"]
+        "required": ["serviceName", "groupId", "role"]
     }
 }

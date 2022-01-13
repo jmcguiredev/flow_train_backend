@@ -3,7 +3,8 @@ const util = require('util');
 const bcrypt = require("bcrypt");
 const { logErrors, logMessage } = require('./logger');
 const { encodeId, decodeId } = require('./hashid');
-const { decode } = require("punycode");
+const { decode, encode } = require("punycode");
+const { verify } = require("crypto");
 
 const DB_HOST = process.env.DB_HOST;
 const DB_USER = process.env.DB_USER;
@@ -25,12 +26,18 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
-function queryCallback(src, err, results, fields) {
-    if (err) {
-        logErrors(src, [err.sqlMessage]);
+async function verifyPermission(objectTableName, encodedObjectId, encodedCompanyId) {
+    const src = `db.verifyPermission [${objectTableName}]`;
+
+    const sqlSelect = "SELECT * from `" + objectTableName + "` WHERE id = ?";
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedObjectId)]);
+    try {
+        const result = await pool.query(select_query);
+        return result[0][0].companyId === decodeId(encodedCompanyId);
+    } catch (err) {
+        logErrors(src, [err]);
         return false;
     }
-    return true;
 }
 
 module.exports.createOrg = async function (fields) {
@@ -147,7 +154,7 @@ module.exports.deleteUser = async function (encodedId) {
 
     const sqlDelete = `DELETE FROM users WHERE id = ?`;
     const delete_query = mysql.format(sqlDelete, [decodeId(encodedId)]);
-    
+
     try {
         await pool.query(delete_query);
         return true;
@@ -206,7 +213,7 @@ module.exports.createGroup = async function (groupName, encodedCompanyId) {
 }
 
 module.exports.getGroups = async function (encodedCompanyId) {
-    const src = 'db.getGroups'; 
+    const src = 'db.getGroups';
 
     const sqlSelect = "SELECT * FROM `groups` WHERE companyId = ?";
     const select_query = mysql.format(sqlSelect, [decodeId(encodedCompanyId)]);
@@ -220,14 +227,14 @@ module.exports.getGroups = async function (encodedCompanyId) {
             return group;
         });
         return groups;
-    } catch(err) {
+    } catch (err) {
         logErrors(src, [err]);
         return false;
     }
 }
 
 module.exports.renameGroup = async function (groupName, encodedGroupId, encodedCompanyId) {
-    const src = 'db.updateGroupName';
+    const src = 'db.renameGroup';
 
     const sqlUpdate = "UPDATE `groups` SET name = ? WHERE id = ? AND companyId = ?";
     const update_query = mysql.format(sqlUpdate, [groupName, decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
@@ -243,7 +250,9 @@ module.exports.renameGroup = async function (groupName, encodedGroupId, encodedC
 
 module.exports.createService = async function (serviceName, encodedGroupId, encodedCompanyId) {
     const src = 'db.createService';
-
+    
+    if(!await verifyPermission('groups', encodedGroupId, encodedCompanyId)) return false;
+    console.log('permission granted');
     const sqlInsert = "INSERT INTO `services` VALUES (NULL,?,?,?)";
     const insert_query = mysql.format(sqlInsert, [serviceName, decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
 
@@ -254,4 +263,26 @@ module.exports.createService = async function (serviceName, encodedGroupId, enco
         logErrors(src, [err]);
         return false;
     }
+}
+
+module.exports.getServices = async function (encodedGroupId, encodedCompanyId) {
+    const src = 'db.getServices';
+
+    const sqlSelect = "SELECT * FROM `services` WHERE groupId = ? AND companyId = ?";
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedGroupId), decodeId(encodedCompanyId)]);
+
+    try {
+        let services = await pool.query(select_query);
+        services = services[0];
+        services.forEach(service => {
+            service.id = encodeId(service.id);
+            delete service.companyId;
+            return service;
+        });
+        return services;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+
 }
