@@ -5,7 +5,13 @@ const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
     renameGroup,
     createService,
-    getServices } = require("./util/db");
+    getServices, 
+    verifyPermission,
+    updateService,
+    updateGroup,
+    deleteGroup,
+    deleteService,
+    createPrompt} = require("./util/db");
 const { schemas, validate } = require('./util/schema');
 
 const port = process.env.PORT;
@@ -24,12 +30,15 @@ app.post('/register-org', async (req, res) => {
         res.sendStatus(400); // bad request
         return;
     }
-    const result = await createOrg(req.body);
+
+    const { email, password, firstName, lastName, companyName } = req.body;
+
+    const result = await createOrg({ email, password, firstName, lastName, companyName });
     if (!result) {
         res.sendStatus(500); // err creating org
         return;
     } else {
-        res.sendStatus(204); // created org
+        res.sendStatus(201); // created org
         return;
     }
 
@@ -48,23 +57,10 @@ app.post('/login', async (req, res) => {
     if (!token) {
         res.sendStatus(500); // Error generating token
     } else {
-        res.status(200).json({ token: token }); // correct password
+        res.json({ token: token }); // correct password
         return;
     }
 });
-
-// app.get('/user', async (req, res) => {
-
-//     let user;
-//     try {
-//         user = verifyToken(req.body.token);
-//     } catch (err) {
-//         res.sendStatus(401); // could not verify token
-//         return;
-//     }
-//     console.log(user);
-//     res.status(200).json(user);
-// });
 
 app.put('/password', async (req, res) => {
 
@@ -132,8 +128,9 @@ app.post('/group', async (req, res) => {
     }
 
     const { groupName } = req.body;
-    const { role, companyId } = user;
-    const valid = validate({ groupName, role }, schemas.createGroupSchema);
+    const { companyId } = user;
+
+    const valid = validate({ groupName }, schemas.createGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
@@ -143,7 +140,7 @@ app.post('/group', async (req, res) => {
         res.sendStatus(500); // err creating group
         return;
     } else {
-        res.json({ groupName, groupId }); // created group
+        res.status(201).json({ groupName, groupId }); // created group
         return;
     }
 
@@ -168,7 +165,7 @@ app.get('/groups', async (req, res) => {
     }
 });
 
-app.put('/group-name', async (req, res) => {
+app.put('/group', async (req, res) => {
 
     let user = verifyToken(req.body.token);
     if (!user) {
@@ -177,20 +174,59 @@ app.put('/group-name', async (req, res) => {
     }
 
     const { groupName, groupId, role } = req.body;
-    const valid = validate({ groupName, groupId, role }, schemas.renameGroupSchema);
+    const { companyId } = user;
+
+    const valid = validate({ groupName, groupId }, schemas.updateGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
 
-    const { companyId } = user;
-    const result = await renameGroup(groupName, groupId, companyId);
-
+    const authorized = await verifyPermission('groups', groupId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+    
+    const result = await updateGroup(groupName, groupId);
     if (!result) {
-        res.sendStatus(500); // unable to update group, possibly due to companyId mismatch
+        res.sendStatus(500); // err updating group
         return;
     } else {
         res.json({ groupName, groupId }); // group updated
+        return;
+    }
+});
+
+app.delete('/group', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { groupId } = req.body;
+    const { companyId, role } = user;
+
+    const valid = validate(groupId, schemas.encodedIdSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    const authorized = await verifyPermission('groups', groupId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const result = await deleteGroup(groupId);
+    if (!result) {
+        res.sendStatus(500); // err updating group
+        return;
+    } else {
+        res.sendStatus(204); // group updated
         return;
     }
 });
@@ -202,22 +238,63 @@ app.post('/service', async (req, res) => {
         res.sendStatus(401); // token invalid
         return;
     }
-
+    
     const { serviceName, groupId } = req.body;
     const { companyId, role } = user;
-    let valid = validate({ serviceName, groupId, companyId, role }, schemas.createServiceSchema);
+
+    let valid = validate({ serviceName, groupId }, schemas.createServiceSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
+
+    const authorized = await verifyPermission('groups', groupId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+    
     const serviceId = await createService(serviceName, groupId, companyId);
     if (!serviceId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
-        res.json({ serviceName, serviceId });
+        res.status(201).json({ serviceName, serviceId, groupId });
         return;
     }
+});
+
+
+app.put('/service', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { serviceName, serviceId } = req.body;
+    const { companyId, role } = user;
+
+    let valid = validate({ serviceName, serviceId }, schemas.updateServiceSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    } 
+
+    const authorized = await verifyPermission('services', serviceId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const service = await updateService(serviceName, serviceId);
+    if(!service) {
+        res.sendStatus(500); // err updating service
+    } else {
+        res.json({ serviceName, serviceId });
+    }
+
 });
 
 app.get('/services', async (req, res) => {
@@ -229,7 +306,20 @@ app.get('/services', async (req, res) => {
     }
 
     const { groupId } = req.body;
-    const { companyId } = user;
+    const { companyId, role } = user;
+    
+    const valid = validate(groupId, schemas.encodedIdSchema);
+    if(!valid) {
+        res.sendStatus(400); // bad req
+        return;
+    }
+
+    const authorized = await verifyPermission('groups', groupId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
     const services = await getServices(groupId, companyId);
     if (!services) {
         res.sendStatus(500); // err getting services
@@ -239,5 +329,90 @@ app.get('/services', async (req, res) => {
         return;
     }
 });
+
+app.delete('/service', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { serviceId } = req.body;
+    const { companyId, role } = user;
+
+    const valid = validate(serviceId, schemas.encodedIdSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    const authorized = await verifyPermission('services', serviceId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const result = await deleteService(serviceId);
+    if (!result) {
+        res.sendStatus(500); // err updating group
+        return;
+    } else {
+        res.sendStatus(204); // group updated
+        return;
+    }
+});
+
+app.post('/prompt', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+    
+    const { promptName, promptText, position, serviceId } = req.body;
+    const { companyId, role } = user;
+
+    let valid = validate({ promptName, promptText, position, serviceId }, schemas.createPromptSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    const authorized = await verifyPermission('services', serviceId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+    
+    const promptId = await createPrompt(promptName, promptText, position, serviceId, companyId);
+    if (!promptId) {
+        res.sendStatus(500); // err creating service
+        return;
+    } else {
+        res.status(201).json({ promptName, promptText, position, serviceId, promptId });
+        return;
+    }
+});
+
+app.put('/prompt', async (req, res) => {
+    
+});
+
+
+
+// ----
+
+function isAdmin(role) {
+    if(role === 'superadmin' || 'admin') {
+        return true;
+    } else return false;
+}
+function isSuperAdmin(role) {
+    if(role === 'superadmin') {
+        return true;
+    } else return false;
+}
 
 
