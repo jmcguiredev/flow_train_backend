@@ -1,14 +1,12 @@
 const express = require("express");
 const app = express();
 require("dotenv").config();
-const bcrypt = require("bcrypt");
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
-    renameGroup, 
+    renameGroup,
     createService,
-    getServices} = require("./util/db");
+    getServices } = require("./util/db");
 const { schemas, validate } = require('./util/schema');
-const { encodeId, decodeId } = require('./util/hashid');
 
 const port = process.env.PORT;
 
@@ -134,12 +132,12 @@ app.post('/group', async (req, res) => {
     }
 
     const { groupName } = req.body;
+    const { role, companyId } = user;
     const valid = validate({ groupName, role }, schemas.createGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
-    const { companyId } = user;
     let groupId = await createGroup(groupName, companyId);
     if (!groupId) {
         res.sendStatus(500); // err creating group
@@ -206,14 +204,14 @@ app.post('/service', async (req, res) => {
     }
 
     const { serviceName, groupId } = req.body;
-    let { companyId, role } = user;
+    const { companyId, role } = user;
     let valid = validate({ serviceName, groupId, companyId, role }, schemas.createServiceSchema);
-    if(!valid) {
+    if (!valid) {
         res.sendStatus(400); // bad request
         return;
-    } 
+    }
     const serviceId = await createService(serviceName, groupId, companyId);
-    if(!serviceId) {
+    if (!serviceId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
@@ -233,7 +231,7 @@ app.get('/services', async (req, res) => {
     const { groupId } = req.body;
     const { companyId } = user;
     const services = await getServices(groupId, companyId);
-    if(!services) {
+    if (!services) {
         res.sendStatus(500); // err getting services
         return;
     } else {

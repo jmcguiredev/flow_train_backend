@@ -219,7 +219,9 @@ module.exports.getGroups = async function (encodedCompanyId) {
 
     try {
         let groups = await pool.query(select_query);
+        console.log(groups);
         groups = groups[0];
+        if(groups[0]) return false;
         groups.forEach(group => {
             group.id = encodeId(group.id);
             delete group.companyId;
@@ -273,6 +275,7 @@ module.exports.getServices = async function (encodedGroupId, encodedCompanyId) {
     try {
         let services = await pool.query(select_query);
         services = services[0];
+        if(!services[0]) return false;
         services.forEach(service => {
             service.id = encodeId(service.id);
             delete service.companyId;
