@@ -78,9 +78,22 @@ const schemas = {
         "type": "object",
         "properties": {
             "promptName": { "$ref": "/BasicName" },
+            "promptText": { "type": "string", "minLength": 3, "maxLength": 255 },
+            "position": { "type": "string", "minLength": 1, "maxLength": 255 },
             "serviceId": { "$ref": "/EncodedId" }
         },
-        "required": ["promptName", "serviceId"]
+        "required": ["promptName", "promptText", "position", "serviceId"]
+    },
+    updatePromptSchema: {
+        "id": "/UpdatePrompt",
+        "type": "object",
+        "properties": {
+            "promptName": { "$ref": "/BasicName" },
+            "promptText": { "type": "string", "minLength": 3, "maxLength": 255 },
+            "position": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "promptId": { "$ref": "/EncodedId" }
+        },
+        "required": ["promptName", "promptText", "position", "promptId"]
     }
 }
 

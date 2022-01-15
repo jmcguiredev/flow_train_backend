@@ -11,7 +11,9 @@ const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroup
     updateGroup,
     deleteGroup,
     deleteService,
-    createPrompt} = require("./util/db");
+    createPrompt,
+    updatePrompt,
+    getPrompts} = require("./util/db");
 const { schemas, validate } = require('./util/schema');
 
 const port = process.env.PORT;
@@ -291,8 +293,10 @@ app.put('/service', async (req, res) => {
     const service = await updateService(serviceName, serviceId);
     if(!service) {
         res.sendStatus(500); // err updating service
+        return;
     } else {
         res.json({ serviceName, serviceId });
+        return;
     }
 
 });
@@ -320,7 +324,7 @@ app.get('/services', async (req, res) => {
         return;
     }
 
-    const services = await getServices(groupId, companyId);
+    const services = await getServices(groupId);
     if (!services) {
         res.sendStatus(500); // err getting services
         return;
@@ -397,10 +401,70 @@ app.post('/prompt', async (req, res) => {
 });
 
 app.put('/prompt', async (req, res) => {
-    
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { promptName, promptText, position, promptId } = req.body;
+    const { companyId, role } = user;
+
+    let valid = validate({ promptName, promptText, position, promptId }, schemas.updatePromptSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    } 
+
+    const authorized = await verifyPermission('prompts', promptId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const prompt = await updatePrompt(promptName, promptText, position, promptId);
+    if(!prompt) {
+        res.sendStatus(500); // err updating service
+        return;
+    } else {
+        res.json({ promptName, promptText, position, promptId });
+        return;
+    }
 });
 
+app.get('/prompts', async (req, res) => {
 
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const { serviceId } = req.body;
+    const { companyId, role } = user;
+    
+    const valid = validate(serviceId, schemas.encodedIdSchema);
+    if(!valid) {
+        res.sendStatus(400); // bad req
+        return;
+    }
+
+    const authorized = await verifyPermission('services', serviceId, companyId);
+    if(!isAdmin(role) || !authorized) { 
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const prompts = await getPrompts(serviceId);
+    if (!prompts) {
+        res.sendStatus(500); // err getting prompts
+        return;
+    } else {
+        res.json({ prompts });
+        return;
+    }
+});
 
 // ----
 

@@ -330,3 +330,26 @@ module.exports.updatePrompt = async function (promptName, promptText, position, 
         return false;
     }
 }
+
+module.exports.getPrompts = async function (encodedServiceId) {
+    const src = 'db.getServices';
+
+    const sqlSelect = "SELECT * FROM prompts WHERE serviceId = ?";
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedServiceId)]);
+
+    try {
+        let prompts = await pool.query(select_query);
+        prompts = prompts[0];
+        if(!prompts[0]) return false;
+        prompts.forEach(prompt => {
+            prompt.id = encodeId(prompt.id);
+            prompt.serviceId = encodeId(prompt.serviceId);
+            delete prompt.companyId;
+            return prompt;
+        });
+        return prompts;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
