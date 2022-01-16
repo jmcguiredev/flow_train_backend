@@ -94,6 +94,26 @@ const schemas = {
             "promptId": { "$ref": "/EncodedId" }
         },
         "required": ["promptName", "promptText", "position", "promptId"]
+    },
+    createAnswerSchema: {
+        "id": "/CreateAnswer",
+        "type": "object",
+        "properties": {
+            "answerText": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "color": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "promptId": { "$ref": "/EncodedId" }
+        },
+        "required": ["answerText", "color", "promptId"]
+    },
+    updateAnswerSchema: {
+        "id": "/UpdatePrompt",
+        "type": "object",
+        "properties": {
+            "answerText": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "color": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "answerId": { "$ref": "/EncodedId" }
+        },
+        "required": ["answerText", "color", "answerId"]
     }
 }
 

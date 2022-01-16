@@ -332,7 +332,7 @@ module.exports.updatePrompt = async function (promptName, promptText, position, 
 }
 
 module.exports.getPrompts = async function (encodedServiceId) {
-    const src = 'db.getServices';
+    const src = 'db.getPrompts';
 
     const sqlSelect = "SELECT * FROM prompts WHERE serviceId = ?";
     const select_query = mysql.format(sqlSelect, [decodeId(encodedServiceId)]);
@@ -349,6 +349,91 @@ module.exports.getPrompts = async function (encodedServiceId) {
         });
         return prompts;
     } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.deletePrompt = async function (encodedPromptId) {
+    const src = 'db.deletePrompt';
+
+    const sqlDelete = "DELETE FROM prompts WHERE id = ?";
+    const delete_query = mysql.format(sqlDelete, [decodeId(encodedPromptId)]);
+
+    try {
+        await pool.query(delete_query);
+        return true;
+    }
+    catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.createAnswer = async function (answerText, color, encodedPromptId, encodedCompanyId) {
+    const src = 'db.createAnswer';
+    
+    const sqlInsert = "INSERT INTO answers VALUES (NULL,?,?,?,?)";
+    const insert_query = mysql.format(sqlInsert, [answerText, color, decodeId(encodedPromptId), decodeId(encodedCompanyId)]);
+
+    try {
+        const result = await pool.query(insert_query);
+        return encodeId(result[0].insertId);
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.updateAnswer = async function (answerText, color, encodedAnswerId) {
+    const src = 'db.updateAnswer';
+
+    const sqlUpdate = "UPDATE answers SET answerText = ?, color = ? WHERE id = ?";
+    const update_query = mysql.format(sqlUpdate, [answerText, color, decodeId(encodedAnswerId)]);
+
+    try {
+        const data = await pool.query(update_query);
+        return true;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.getAnswers = async function (encodedPromptId) {
+    const src = 'db.getAnswers';
+
+    const sqlSelect = "SELECT * FROM answers WHERE promptId = ?";
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedPromptId)]);
+
+    try {
+        let answers = await pool.query(select_query);
+        answers = answers[0];
+        if(!answers[0]) return false;
+        answers.forEach(answer => {
+            answer.id = encodeId(answer.id);
+            answer.promptId = encodeId(answer.promptId);
+            delete answer.companyId;
+            return answer;
+        });
+        return answers;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.deleteAnswer = async function (encodedAnswerId) {
+    const src = 'db.deleteAnswer';
+
+    const sqlDelete = "DELETE FROM answers WHERE id = ?";
+    const delete_query = mysql.format(sqlDelete, [decodeId(encodedAnswerId)]);
+
+    try {
+        await pool.query(delete_query);
+        return true;
+    }
+    catch (err) {
         logErrors(src, [err]);
         return false;
     }
