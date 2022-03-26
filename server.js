@@ -1,10 +1,11 @@
 const express = require("express");
 const app = express();
 require("dotenv").config();
-const { verifyToken, generateAccessToken } = require("./util/jwt");
-const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
+const {verifyToken, generateAccessToken} = require("./util/jwt");
+const {
+    setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
     createService,
-    getServices, 
+    getServices,
     verifyPermission,
     updateService,
     updateGroup,
@@ -17,8 +18,9 @@ const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroup
     createAnswer,
     updateAnswer,
     getAnswers,
-    deleteAnswer} = require("./util/db");
-const { schemas, validate } = require('./util/schema');
+    deleteAnswer, createSnippet, updateSnippet, getSnippets, deleteSnippet
+} = require("./util/db");
+const {schemas, validate} = require('./util/schema');
 
 const port = process.env.PORT;
 
@@ -26,7 +28,6 @@ app.use(express.json());
 
 app.listen(port,
     () => console.log(`Server Started on port ${port}...`));
-
 
 
 app.post('/register-org', async (req, res) => {
@@ -37,9 +38,9 @@ app.post('/register-org', async (req, res) => {
         return;
     }
 
-    const { email, password, firstName, lastName, companyName } = req.body;
+    const {email, password, firstName, lastName, companyName} = req.body;
 
-    const result = await createOrg({ email, password, firstName, lastName, companyName });
+    const result = await createOrg({email, password, firstName, lastName, companyName});
     if (!result) {
         res.sendStatus(500); // err creating org
         return;
@@ -52,7 +53,7 @@ app.post('/register-org', async (req, res) => {
 
 app.post('/login', async (req, res) => {
 
-    const { email, password } = req.body;
+    const {email, password} = req.body;
     let user = await checkPassword(email, password);
     if (!user) {
         res.sendStatus(401); // Incorrect password
@@ -63,14 +64,14 @@ app.post('/login', async (req, res) => {
     if (!token) {
         res.sendStatus(500); // Error generating token
     } else {
-        res.json({ token: token }); // correct password
+        res.json({token: token}); // correct password
         return;
     }
 });
 
 app.put('/password', async (req, res) => {
 
-    const { token, password, newPassword } = req.body;
+    const {token, password, newPassword} = req.body;
 
     let user;
     try {
@@ -99,7 +100,7 @@ app.put('/password', async (req, res) => {
 
 app.delete('/user', async (req, res) => {
 
-    const { token, password } = req.body;
+    const {token, password} = req.body;
 
     let user;
     try {
@@ -133,15 +134,15 @@ app.post('/group', async (req, res) => {
         return;
     }
 
-    const { groupName } = req.body;
-    const { companyId, role } = user;
+    const {groupName} = req.body;
+    const {companyId, role} = user;
 
-    if(!isAdmin(role)) {
+    if (!isAdmin(role)) {
         res.sendStatus(403);
         return;
     }
 
-    const valid = validate({ groupName }, schemas.createGroupSchema);
+    const valid = validate({groupName}, schemas.createGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
@@ -151,7 +152,7 @@ app.post('/group', async (req, res) => {
         res.sendStatus(500); // err creating group
         return;
     } else {
-        res.status(201).json({ groupName, id: groupId }); // created group
+        res.status(201).json({groupName, id: groupId}); // created group
         return;
     }
 
@@ -165,13 +166,13 @@ app.get('/groups', async (req, res) => {
         return;
     }
 
-    const { companyId } = user;
+    const {companyId} = user;
     const groups = await getGroups(companyId);
     if (!groups) {
         res.sendStatus(500); // err getting groups
         return;
     } else {
-        res.json({ groups });
+        res.json({groups});
         return;
     }
 });
@@ -184,27 +185,27 @@ app.put('/group', async (req, res) => {
         return;
     }
 
-    const { groupName, groupId, role } = req.body;
-    const { companyId } = user;
+    const {groupName, groupId, role} = req.body;
+    const {companyId} = user;
 
-    const valid = validate({ groupName, groupId }, schemas.updateGroupSchema);
+    const valid = validate({groupName, groupId}, schemas.updateGroupSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
 
     const authorized = await verifyPermission('groups', groupId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
-    
+
     const result = await updateGroup(groupName, groupId);
     if (!result) {
         res.sendStatus(500); // err updating group
         return;
     } else {
-        res.json({ groupName, id: groupId }); // group updated
+        res.json({groupName, id: groupId}); // group updated
         return;
     }
 });
@@ -217,8 +218,8 @@ app.delete('/group', async (req, res) => {
         return;
     }
 
-    const { groupId } = req.body;
-    const { companyId, role } = user;
+    const {groupId} = req.body;
+    const {companyId, role} = user;
 
     const valid = validate(groupId, schemas.encodedIdSchema);
     if (!valid) {
@@ -227,7 +228,7 @@ app.delete('/group', async (req, res) => {
     }
 
     const authorized = await verifyPermission('groups', groupId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -249,28 +250,28 @@ app.post('/service', async (req, res) => {
         res.sendStatus(401); // token invalid
         return;
     }
-    
-    const { serviceName, groupId } = req.body;
-    const { companyId, role } = user;
 
-    let valid = validate({ serviceName, groupId }, schemas.createServiceSchema);
+    const {serviceName, groupId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({serviceName, groupId}, schemas.createServiceSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
 
     const authorized = await verifyPermission('groups', groupId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
-    
+
     const serviceId = await createService(serviceName, groupId, companyId);
     if (!serviceId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
-        res.status(201).json({ serviceName, groupId, id: serviceId });
+        res.status(201).json({serviceName, groupId, id: serviceId});
         return;
     }
 });
@@ -284,27 +285,27 @@ app.put('/service', async (req, res) => {
         return;
     }
 
-    const { serviceName, serviceId } = req.body;
-    const { companyId, role } = user;
+    const {serviceName, serviceId} = req.body;
+    const {companyId, role} = user;
 
-    let valid = validate({ serviceName, serviceId }, schemas.updateServiceSchema);
+    let valid = validate({serviceName, serviceId}, schemas.updateServiceSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
-    } 
+    }
 
     const authorized = await verifyPermission('services', serviceId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
 
     const service = await updateService(serviceName, serviceId);
-    if(!service) {
+    if (!service) {
         res.sendStatus(500); // err updating service
         return;
     } else {
-        res.json({ serviceName, id: serviceId });
+        res.json({serviceName, id: serviceId});
         return;
     }
 
@@ -318,17 +319,17 @@ app.get('/services', async (req, res) => {
         return;
     }
 
-    const { groupId } = req.body;
-    const { companyId } = user;
-    
+    const {groupId} = req.body;
+    const {companyId} = user;
+
     const valid = validate(groupId, schemas.encodedIdSchema);
-    if(!valid) {
+    if (!valid) {
         res.sendStatus(400); // bad req
         return;
     }
 
     const authorized = await verifyPermission('groups', groupId, companyId);
-    if(!authorized) {
+    if (!authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -338,7 +339,7 @@ app.get('/services', async (req, res) => {
         res.sendStatus(500); // err getting services
         return;
     } else {
-        res.json({ services });
+        res.json({services});
         return;
     }
 });
@@ -351,8 +352,8 @@ app.delete('/service', async (req, res) => {
         return;
     }
 
-    const { serviceId } = req.body;
-    const { companyId, role } = user;
+    const {serviceId} = req.body;
+    const {companyId, role} = user;
 
     const valid = validate(serviceId, schemas.encodedIdSchema);
     if (!valid) {
@@ -361,7 +362,7 @@ app.delete('/service', async (req, res) => {
     }
 
     const authorized = await verifyPermission('services', serviceId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -383,28 +384,28 @@ app.post('/prompt', async (req, res) => {
         res.sendStatus(401); // token invalid
         return;
     }
-    
-    const { promptName, promptText, position, serviceId } = req.body;
-    const { companyId, role } = user;
 
-    let valid = validate({ promptName, promptText, position, serviceId }, schemas.createPromptSchema);
+    const {promptName, promptText, position, serviceId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({promptName, promptText, position, serviceId}, schemas.createPromptSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
 
     const authorized = await verifyPermission('services', serviceId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
-    
+
     const promptId = await createPrompt(promptName, promptText, position, serviceId, companyId);
     if (!promptId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
-        res.status(201).json({ promptName, promptText, position, serviceId, id: promptId });
+        res.status(201).json({promptName, promptText, position, serviceId, id: promptId});
         return;
     }
 });
@@ -417,27 +418,27 @@ app.put('/prompt', async (req, res) => {
         return;
     }
 
-    const { promptName, promptText, position, promptId } = req.body;
-    const { companyId, role } = user;
+    const {promptName, promptText, position, promptId} = req.body;
+    const {companyId, role} = user;
 
-    let valid = validate({ promptName, promptText, position, promptId }, schemas.updatePromptSchema);
+    let valid = validate({promptName, promptText, position, promptId}, schemas.updatePromptSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
-    } 
+    }
 
     const authorized = await verifyPermission('prompts', promptId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
 
     const prompt = await updatePrompt(promptName, promptText, position, promptId);
-    if(!prompt) {
+    if (!prompt) {
         res.sendStatus(500); // err updating service
         return;
     } else {
-        res.json({ promptName, promptText, position, id: promptId });
+        res.json({promptName, promptText, position, id: promptId});
         return;
     }
 });
@@ -450,17 +451,17 @@ app.get('/prompts', async (req, res) => {
         return;
     }
 
-    const { serviceId } = req.body;
-    const { companyId, role } = user;
-    
+    const {serviceId} = req.body;
+    const {companyId, role} = user;
+
     const valid = validate(serviceId, schemas.encodedIdSchema);
-    if(!valid) {
+    if (!valid) {
         res.sendStatus(400); // bad req
         return;
     }
 
     const authorized = await verifyPermission('services', serviceId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -470,7 +471,7 @@ app.get('/prompts', async (req, res) => {
         res.sendStatus(500); // err getting prompts
         return;
     } else {
-        res.json({ prompts });
+        res.json({prompts});
         return;
     }
 });
@@ -483,8 +484,8 @@ app.delete('/prompt', async (req, res) => {
         return;
     }
 
-    const { promptId } = req.body;
-    const { companyId, role } = user;
+    const {promptId} = req.body;
+    const {companyId, role} = user;
 
     const valid = validate(promptId, schemas.encodedIdSchema);
     if (!valid) {
@@ -493,7 +494,7 @@ app.delete('/prompt', async (req, res) => {
     }
 
     const authorized = await verifyPermission('prompts', promptId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -515,28 +516,28 @@ app.post('/answer', async (req, res) => {
         res.sendStatus(401); // token invalid
         return;
     }
-    
-    const { answerText, color, promptId } = req.body;
-    const { companyId, role } = user;
 
-    let valid = validate({ answerText, color, promptId }, schemas.createAnswerSchema);
+    const {answerText, color, promptId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({answerText, color, promptId}, schemas.createAnswerSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
     }
 
     const authorized = await verifyPermission('prompts', promptId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
-    
+
     const answerId = await createAnswer(answerText, color, promptId, companyId);
     if (!answerId) {
         res.sendStatus(500); // err creating service
         return;
     } else {
-        res.status(201).json({ answerText, color, promptId, id: answerId });
+        res.status(201).json({answerText, color, promptId, id: answerId});
         return;
     }
 });
@@ -549,27 +550,27 @@ app.put('/answer', async (req, res) => {
         return;
     }
 
-    const { answerText, color, answerId } = req.body;
-    const { companyId, role } = user;
+    const {answerText, color, answerId} = req.body;
+    const {companyId, role} = user;
 
-    let valid = validate({ answerText, color, answerId }, schemas.updateAnswerSchema);
+    let valid = validate({answerText, color, answerId}, schemas.updateAnswerSchema);
     if (!valid) {
         res.sendStatus(400); // bad request
         return;
-    } 
+    }
 
     const authorized = await verifyPermission('answers', answerId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
 
     const answer = await updateAnswer(answerText, color, answerId);
-    if(!answer) {
+    if (!answer) {
         res.sendStatus(500); // err updating service
         return;
     } else {
-        res.json({ answerText, color, id: answerId });
+        res.json({answerText, color, id: answerId});
         return;
     }
 });
@@ -582,17 +583,17 @@ app.get('/answers', async (req, res) => {
         return;
     }
 
-    const { promptId } = req.body;
-    const { companyId, role } = user;
-    
+    const {promptId} = req.body;
+    const {companyId, role} = user;
+
     const valid = validate(promptId, schemas.encodedIdSchema);
-    if(!valid) {
+    if (!valid) {
         res.sendStatus(400); // bad req
         return;
     }
 
     const authorized = await verifyPermission('prompts', promptId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -602,7 +603,7 @@ app.get('/answers', async (req, res) => {
         res.sendStatus(500); // err getting answers
         return;
     } else {
-        res.json({ answers });
+        res.json({answers});
         return;
     }
 });
@@ -615,8 +616,8 @@ app.delete('/answer', async (req, res) => {
         return;
     }
 
-    const { answerId } = req.body;
-    const { companyId, role } = user;
+    const {answerId} = req.body;
+    const {companyId, role} = user;
 
     const valid = validate(answerId, schemas.encodedIdSchema);
     if (!valid) {
@@ -624,8 +625,9 @@ app.delete('/answer', async (req, res) => {
         return;
     }
 
+
     const authorized = await verifyPermission('answers', answerId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if (!isAdmin(role) || !authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -640,15 +642,192 @@ app.delete('/answer', async (req, res) => {
     }
 });
 
+app.post('/snippet', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const {name, markdown, ownerType, ownerId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({name, markdown, ownerType, ownerId}, schemas.createSnippetSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    let authorized;
+    switch (ownerType) {
+        case 'company':
+            authorized = await verifyPermission('companies', ownerId, companyId);
+            break;
+        case 'group':
+            authorized = await verifyPermission('groups', ownerId, companyId);
+            break;
+        case 'service':
+            authorized = await verifyPermission('services', ownerId, companyId);
+    }
+
+    if (!isAdmin(role) || !authorized) {
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const answerId = await createSnippet(name, markdown, ownerType, companyId, ownerId);
+    if (!answerId) {
+        res.sendStatus(500); // err creating service
+        return;
+    } else {
+        res.status(201).json({name, markdown, ownerType, ownerId, id: answerId});
+        return;
+    }
+});
+
+app.put('/snippet', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const {name, markdown, ownerType, ownerId, snippetId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({name, markdown, ownerType, snippetId}, schemas.updateSnippetSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    let authorized;
+    switch (ownerType) {
+        case 'company':
+            authorized = await verifyPermission('company_snippets', snippetId, companyId);
+            break;
+        case 'group':
+            authorized = await verifyPermission('group_snippets', snippetId, companyId);
+            break;
+        case 'service':
+            authorized = await verifyPermission('service_snippets', snippetId, companyId);
+    }
+
+    if (!isAdmin(role) || !authorized) {
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const answer = await updateSnippet(name, markdown, ownerType, snippetId);
+    if (!answer) {
+        res.sendStatus(500); // err updating service
+        return;
+    } else {
+        res.json({name, markdown, ownerType, ownerId, snippetId});
+        return;
+    }
+});
+
+app.get('/snippets', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const {ownerId, ownerType} = req.body;
+    const {companyId, role} = user;
+
+    const valid = validate(ownerId, schemas.encodedIdSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad req
+        return;
+    }
+
+    let authorized;
+    switch (ownerType) {
+        case 'company':
+            authorized = await verifyPermission('companies', ownerId, companyId);
+            break;
+        case 'group':
+            authorized = await verifyPermission('groups', ownerId, companyId);
+            break;
+        case 'service':
+            authorized = await verifyPermission('services', ownerId, companyId);
+    }
+
+    if (!authorized) {
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const snippets = await getSnippets(ownerType, ownerId);
+    if (!snippets) {
+        res.sendStatus(500); // err getting answers
+        return;
+    } else {
+        res.json({snippets});
+        return;
+    }
+});
+
+app.delete('/snippet', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const {ownerType, snippetId} = req.body;
+    const {companyId, role} = user;
+
+    const valid = validate(snippetId, schemas.encodedIdSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    let authorized;
+    switch (ownerType) {
+        case 'company':
+            authorized = await verifyPermission('company_snippets', snippetId, companyId);
+            break;
+        case 'group':
+            authorized = await verifyPermission('group_snippets', snippetId, companyId);
+            break;
+        case 'service':
+            authorized = await verifyPermission('service_snippets', snippetId, companyId);
+    }
+
+    if (!isAdmin(role) || !authorized) {
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const result = await deleteSnippet(ownerType, snippetId);
+    if (!result) {
+        res.sendStatus(500); // err updating group
+        return;
+    } else {
+        res.sendStatus(204); // group updated
+        return;
+    }
+});
+
 // ----
 
 function isAdmin(role) {
-    if(role === 'superadmin' || 'admin') {
+    if (role === 'superadmin' || 'admin') {
         return true;
     } else return false;
 }
+
 function isSuperAdmin(role) {
-    if(role === 'superadmin') {
+    if (role === 'superadmin') {
         return true;
     } else return false;
 }

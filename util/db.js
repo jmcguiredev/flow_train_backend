@@ -31,7 +31,7 @@ module.exports.verifyPermission = async function (objectTableName, encodedObject
     const select_query = mysql.format(sqlSelect, [decodeId(encodedObjectId)]);
     try {
         const result = await pool.query(select_query);
-        return result[0][0].companyId === decodeId(encodedCompanyId);
+        return result[0][0][objectTableName === 'companies' ? 'id' : 'companyId'] === decodeId(encodedCompanyId);
     } catch (err) {
         logErrors(src, [err]);
         return false;
@@ -413,6 +413,127 @@ module.exports.deleteAnswer = async function (encodedAnswerId) {
 
     const sqlDelete = "DELETE FROM answers WHERE id = ?";
     const delete_query = mysql.format(sqlDelete, [decodeId(encodedAnswerId)]);
+
+    try {
+        await pool.query(delete_query);
+        return true;
+    }
+    catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.createSnippet = async function (name, markdown, ownerType, encodedCompanyId, encodedOwnerId) {
+    const src = 'db.createSnippet';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippets';
+            break;
+        case 'group':
+            tableName = 'group_snippets';
+            break;
+        case 'service':
+            tableName = 'service_snippets';
+    }
+
+    const sqlInsert = `INSERT INTO ${tableName} VALUES (NULL,?,?,?,?)`;
+    const insert_query = mysql.format(sqlInsert, [name, markdown, decodeId(encodedCompanyId), decodeId(encodedOwnerId)]);
+
+    try {
+        const result = await pool.query(insert_query);
+        return encodeId(result[0].insertId);
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.updateSnippet = async function (name, markdown, ownerType, encodedSnippetId) {
+    const src = 'db.updateSnippet';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippets';
+            break;
+        case 'group':
+            tableName = 'group_snippets';
+            break;
+        case 'service':
+            tableName = 'service_snippets';
+    }
+
+    const sqlUpdate = `UPDATE ${tableName} SET name = ?, markdown = ? WHERE id = ?`;
+    const update_query = mysql.format(sqlUpdate, [name, markdown, decodeId(encodedSnippetId)]);
+
+    try {
+        const data = await pool.query(update_query);
+        return true;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.getSnippets = async function (ownerType, encodedOwnerId) {
+    const src = 'db.getSnippets';
+
+    let tableName;
+    let ownerIdColumnName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippets';
+            ownerIdColumnName = 'companyId';
+            break;
+        case 'group':
+            tableName = 'group_snippets';
+            ownerIdColumnName = 'groupId';
+            break;
+        case 'service':
+            tableName = 'service_snippets';
+            ownerIdColumnName = 'serviceId';
+    }
+
+    const sqlSelect = `SELECT * FROM ${tableName} WHERE ${ownerIdColumnName} = ?`;
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedOwnerId)]);
+
+    try {
+        let snippets = await pool.query(select_query);
+        snippets = snippets[0];
+        if(!snippets[0]) return false;
+        snippets.forEach(snippet => {
+            snippet.id = encodeId(snippet.id);
+            snippet.ownerId = encodeId(snippet[ownerIdColumnName]);
+            delete snippet.companyId;
+            return snippet;
+        });
+        return snippets;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.deleteSnippet = async function (ownerType, encodedSnippetId) {
+    const src = 'db.deleteSnippet';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippets';
+            break;
+        case 'group':
+            tableName = 'group_snippets';
+            break;
+        case 'service':
+            tableName = 'service_snippets';
+    }
+
+    const sqlDelete = `DELETE FROM ${tableName} WHERE id = ?`;
+    const delete_query = mysql.format(sqlDelete, [decodeId(encodedSnippetId)]);
 
     try {
         await pool.query(delete_query);

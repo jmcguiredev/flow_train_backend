@@ -114,6 +114,28 @@ const schemas = {
             "answerId": { "$ref": "/EncodedId" }
         },
         "required": ["answerText", "color", "answerId"]
+    },
+    createSnippetSchema: {
+        "id": "/CreateSnippet",
+        "type": "object",
+        "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "markdown": { "type": "string", "minLength": 1, "maxLength": 65_000 },
+            "ownerType": { "enum": ["company", "group", "service"] },
+            "ownerId": { "$ref": "/EncodedId" }
+        },
+        "required": ["name", "markdown", "ownerType", "ownerId"]
+    },
+    updateSnippetSchema: {
+        "id": "/CreateSnippet",
+        "type": "object",
+        "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "markdown": { "type": "string", "minLength": 1, "maxLength": 65_000 },
+            "ownerType": { "enum": ["company", "group", "service"] },
+            "snippetId": { "$ref": "/EncodedId" }
+        },
+        "required": ["name", "markdown", "ownerType", "snippetId"]
     }
 }
 
