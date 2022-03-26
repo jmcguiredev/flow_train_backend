@@ -3,7 +3,6 @@ const app = express();
 require("dotenv").config();
 const { verifyToken, generateAccessToken } = require("./util/jwt");
 const { setPassword, deleteUser, createGroup, createOrg, checkPassword, getGroups,
-    renameGroup,
     createService,
     getServices, 
     verifyPermission,
@@ -135,7 +134,12 @@ app.post('/group', async (req, res) => {
     }
 
     const { groupName } = req.body;
-    const { companyId } = user;
+    const { companyId, role } = user;
+
+    if(!isAdmin(role)) {
+        res.sendStatus(403);
+        return;
+    }
 
     const valid = validate({ groupName }, schemas.createGroupSchema);
     if (!valid) {
@@ -315,7 +319,7 @@ app.get('/services', async (req, res) => {
     }
 
     const { groupId } = req.body;
-    const { companyId, role } = user;
+    const { companyId } = user;
     
     const valid = validate(groupId, schemas.encodedIdSchema);
     if(!valid) {
@@ -324,7 +328,7 @@ app.get('/services', async (req, res) => {
     }
 
     const authorized = await verifyPermission('groups', groupId, companyId);
-    if(!isAdmin(role) || !authorized) { 
+    if(!authorized) {
         res.sendStatus(403); // forbidden
         return;
     }
@@ -367,7 +371,7 @@ app.delete('/service', async (req, res) => {
         res.sendStatus(500); // err updating group
         return;
     } else {
-        res.sendStatus(204); // group updated
+        res.sendStatus(204); // service updated
         return;
     }
 });

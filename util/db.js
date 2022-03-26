@@ -78,21 +78,6 @@ module.exports.createOrg = async function (fields) {
 
 }
 
-// module.exports.createUser = async function (email, hashedPassword, firstName, lastName, companyName) {
-
-//     const sqlInsert = `INSERT INTO users VALUES (NULL,?,?,?,?)`;
-//     const insert_query = mysql.format(sqlInsert, [username, hashedPassword, companyId, isAdmin]);
-
-//     try {
-//         const result = await pool.query(insert_query);
-//         return result.insertId;
-//     } catch (err) {
-//         console.log('[createUser] : ', err);
-//         throw err;
-//     }
-
-// }
-
 module.exports.checkPassword = async function (email, password) {
     const src = 'db.checkPassword';
 
