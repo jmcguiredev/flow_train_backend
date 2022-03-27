@@ -68,6 +68,7 @@ module.exports.createOrg = async function (fields) {
 
     } catch (err) {
         await connection.rollback();
+        console.log(err);
         logErrors(src, [err.sqlMessage]);
         return false;
     } finally {
@@ -540,6 +541,33 @@ module.exports.deleteSnippet = async function (ownerType, encodedSnippetId) {
         return true;
     }
     catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.createAction = async function (actionType, ownerType, encodedSnippetId, encodedAnswerId, encodedCompanyId, encodedOwnerId) {
+    const src = 'db.createAction';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippet_actions';
+            break;
+        case 'group':
+            tableName = 'group_snippet_actions';
+            break;
+        case 'service':
+            tableName = 'service_snippet_actions';
+    }
+
+    const sqlInsert = `INSERT INTO ${tableName} VALUES (NULL,?,?,?,?,?)`;
+    const insert_query = mysql.format(sqlInsert, [actionType, decodeId(encodedSnippetId), decodeId(encodedAnswerId),  decodeId(encodedCompanyId), decodeId(encodedOwnerId)]);
+
+    try {
+        const result = await pool.query(insert_query);
+        return encodeId(result[0].insertId);
+    } catch (err) {
         logErrors(src, [err]);
         return false;
     }

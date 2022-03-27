@@ -18,16 +18,16 @@ const {
     createAnswer,
     updateAnswer,
     getAnswers,
-    deleteAnswer, createSnippet, updateSnippet, getSnippets, deleteSnippet
+    deleteAnswer, createSnippet, updateSnippet, getSnippets, deleteSnippet, createAction
 } = require("./util/db");
 const {schemas, validate} = require('./util/schema');
 
 const port = process.env.PORT;
-
 app.use(express.json());
+app.listen(port, () => console.log(`Server Started on port ${port}...`));
 
-app.listen(port,
-    () => console.log(`Server Started on port ${port}...`));
+const { MysqlErrorCodes } = require('mysql-error-codes');
+console.log(MysqlErrorCodes);
 
 
 app.post('/register-org', async (req, res) => {
@@ -814,6 +814,50 @@ app.delete('/snippet', async (req, res) => {
         return;
     } else {
         res.sendStatus(204); // group updated
+        return;
+    }
+});
+
+app.post('/action', async (req, res) => {
+
+    let user = verifyToken(req.body.token);
+    if (!user) {
+        res.sendStatus(401); // token invalid
+        return;
+    }
+
+    const {actionType, ownerType, snippetId, answerId, ownerId} = req.body;
+    const {companyId, role} = user;
+
+    let valid = validate({actionType, ownerType, snippetId, answerId, ownerId}, schemas.createActionSchema);
+    if (!valid) {
+        res.sendStatus(400); // bad request
+        return;
+    }
+
+    let authorized;
+    switch (ownerType) {
+        case 'company':
+            authorized = await verifyPermission('companies', ownerId, companyId);
+            break;
+        case 'group':
+            authorized = await verifyPermission('groups', ownerId, companyId);
+            break;
+        case 'service':
+            authorized = await verifyPermission('services', ownerId, companyId);
+    }
+
+    if (!isAdmin(role) || !authorized) {
+        res.sendStatus(403); // forbidden
+        return;
+    }
+
+    const actionId = await createAction(actionType, ownerType, snippetId, answerId, companyId, ownerId);
+    if (!actionId) {
+        res.sendStatus(500); // err creating service
+        return;
+    } else {
+        res.status(201).json({actionType, ownerType, snippetId, answerId, companyId, ownerId});
         return;
     }
 });

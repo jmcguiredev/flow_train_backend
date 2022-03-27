@@ -136,7 +136,19 @@ const schemas = {
             "snippetId": { "$ref": "/EncodedId" }
         },
         "required": ["name", "markdown", "ownerType", "snippetId"]
-    }
+    },
+    createActionSchema: {
+        "id": "/CreateAction",
+        "type": "object",
+        "properties": {
+            "actionType": { "type": "string", "minLength": 1, "maxLength": 45 },
+            "ownerType": { "enum": ["company", "group", "service"] },
+            "snippetId": { "$ref": "/EncodedId" },
+            "answerId": { "$ref": "/EncodedId" },
+            "ownerId": { "$ref": "/EncodedId" }
+        },
+        "required": ["actionType", "ownerType", "snippetId", "answerId", "ownerId"]
+    },
 }
 
 Object.values(schemas).forEach((schema) => {
