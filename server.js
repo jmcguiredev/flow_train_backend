@@ -26,9 +26,6 @@ const port = process.env.PORT;
 app.use(express.json());
 app.listen(port, () => console.log(`Server Started on port ${port}...`));
 
-const { MysqlErrorCodes } = require('mysql-error-codes');
-console.log(MysqlErrorCodes);
-
 
 app.post('/register-org', async (req, res) => {
 

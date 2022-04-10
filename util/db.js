@@ -572,3 +572,65 @@ module.exports.createAction = async function (actionType, ownerType, encodedSnip
         return false;
     }
 }
+
+module.exports.updateAction = async function (actionType, ownerType, encodedActionId) {
+    const src = 'db.updateAction';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippet_actions';
+            break;
+        case 'group':
+            tableName = 'group_snippet_actions';
+            break;
+        case 'service':
+            tableName = 'service_snippet_actions';
+    }
+
+    const sqlUpdate = `UPDATE ${tableName} SET type = ? WHERE id = ?`;
+    const update_query = mysql.format(sqlUpdate, [actionType, decodeId(encodedActionId)]);
+
+    try {
+        await pool.query(update_query);
+        return true;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
+module.exports.getActions = async function (ownerType, encodedAnswerId) {
+    const src = 'db.getSnippets';
+
+    let tableName;
+    switch(ownerType) {
+        case 'company':
+            tableName = 'company_snippet_actions';
+            break;
+        case 'group':
+            tableName = 'group_snippet_actions';
+            break;
+        case 'service':
+            tableName = 'service_snippet_actions';
+    }
+
+    const sqlSelect = `SELECT * FROM answers WHERE ${ownerIdColumnName} = ?`;
+    const select_query = mysql.format(sqlSelect, [decodeId(encodedAnswerId)]);
+
+    try {
+        let actions = await pool.query(select_query);
+        actions = actions[0];
+        if(!actions[0]) return false;
+        actions.forEach(action => {
+            action.id = encodeId(action.id);
+            delete action.companyId;
+            return action;
+        });
+        return actions;
+    } catch (err) {
+        logErrors(src, [err]);
+        return false;
+    }
+}
+
